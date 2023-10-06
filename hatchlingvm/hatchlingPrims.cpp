@@ -15,6 +15,7 @@
 
 #include "mem.h"
 #include "interp.h"
+//#include "ioPrims.cpp"
 
 static int spiSpeed = 1000000;
 static int spiMode = SPI_MODE0;
@@ -132,8 +133,8 @@ OBJ primFairyLights(int argCount, OBJ *args) {
     return falseObj;
 }
 
-// Function to control attached servo
-OBJ primServos(int argCount, OBJ *args) {
+// Function to control attached position servo
+OBJ primPositionServos(int argCount, OBJ *args) {
 	if (!isInt(args[1])) { fail(needsIntegerError); return args[1]; }
 
     if (!IS_TYPE(args[0], StringType)) return fail(needsStringError);
@@ -163,6 +164,43 @@ OBJ primServos(int argCount, OBJ *args) {
     }
     return falseObj;
 }
+
+
+// Function to control attached rotation servo
+OBJ primRotationServos(int argCount, OBJ *args) {
+	if (!isInt(args[1])) { fail(needsIntegerError); return args[1]; }
+
+    if (!IS_TYPE(args[0], StringType)) return fail(needsStringError);
+    int ch = obj2str(args[0])[0];
+    int pinNum = -1; // default value: invalid port
+    if (('A' <= ch) && (ch <= 'F')) pinNum = ch - 'A';
+    if (('a' <= ch) && (ch <= 'f')) pinNum = ch - 'a';
+
+	if (pinNum == -1)
+    {
+        return args[0];
+    }
+	int value = obj2int(args[1]);
+	if (value < -100) value = -100;
+	if (value > 100) value = 100;
+
+    // Only do the rest if you have a servo attached on that port
+    if(GP_ID_vals[pinNum] > 0 && GP_ID_vals[pinNum] < 7) 
+    {
+        // Convert value to something useful for rotation servos
+        value = value/3 + 90;
+
+        // Set the appropriate part of the command 
+        PortValuesCommand[pinNum*3 + 1] = 0;
+        PortValuesCommand[pinNum*3 + 2] = 0;
+        PortValuesCommand[pinNum*3 + 3] = value;
+
+        setPortsViaSPI();
+	    return trueObj;
+    }
+    return falseObj;
+}
+
 
 // Function to control attached neopixel LED
 OBJ primNeoPixel(int argCount, OBJ *args) {
@@ -476,15 +514,16 @@ void readHatchlingSensors() {
 }
 
 static PrimEntry entries[] = {
-	{"read", primHatchlingRead},
-    {"setFairyLights", primFairyLights},
-    {"setServos", primServos},
-    {"setNeopixel", primNeoPixel},
-    {"setNeopixelStrip", primNeoPixelStrip},
-    {"getDistanceSensor", primDistanceSensor},
+	{"rd", primHatchlingRead},
+    {"fl", primFairyLights},
+    {"psv", primPositionServos},
+    {"rsv", primRotationServos},
+    {"np", primNeoPixel},
+    {"nps", primNeoPixelStrip},
+    {"ds", primDistanceSensor},
 };
 
 void addHatchlingPrims() {
-	addPrimitiveSet("hatchling", sizeof(entries) / sizeof(PrimEntry), entries);
+	addPrimitiveSet("h", sizeof(entries) / sizeof(PrimEntry), entries);
 }
 

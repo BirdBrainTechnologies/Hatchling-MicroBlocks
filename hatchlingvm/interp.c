@@ -1278,20 +1278,20 @@ void vmLoop() {
       // Uptime with a program varies from 5 us to 25 us
       
 
-			updateMicrobitDisplay();
-			checkButtons();
+		updateMicrobitDisplay();
+		checkButtons();
       // Could add check accelerometer for shake, checking for claps, etc here - TOM NOTE
-			processMessage();
+		processMessage();
       // Check if it is time to get a sensor reading from Hatchling to check port states, attached sensor values
       // Do this every 5 ms
-      if((microsecs() - timeToSPI) > 5000)
-      {
-        pinMode(1, OUTPUT);
-        digitalWrite(1, HIGH);
-        readHatchlingSensors(); // This function currently takes 260 us
-        timeToSPI = microsecs(); // Update time
-        digitalWrite(1, LOW);
-      }
+		if((microsecs() - timeToSPI) > 5000)
+			{
+				pinMode(1, OUTPUT);
+				digitalWrite(1, HIGH);
+				readHatchlingSensors(); // This function currently takes 260 us
+				timeToSPI = microsecs(); // Update time
+				digitalWrite(1, LOW);
+			}
 
 			count = 25; // must be under 30 when building on mbed to avoid serial errors
 		}

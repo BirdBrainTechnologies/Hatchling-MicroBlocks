@@ -125,7 +125,7 @@ void primsInit() {
 	addMiscPrims();
 	addRadioPrims();
 	addSensorPrims();
-  addHatchlingPrims(); // Added by TOM
+    addHatchlingPrims(); // Added by TOM
   // Add a Hatchling set of prims here //addHatchlingPrims(); The need to add the primitives to a library in MicroBlocks TOM NOTE
 }
 

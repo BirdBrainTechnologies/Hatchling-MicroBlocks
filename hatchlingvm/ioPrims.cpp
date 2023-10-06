@@ -809,6 +809,38 @@ OBJ primPlayTone(int argCount, OBJ *args) {
 	return trueObj;
 }
 
+
+OBJ primPlayToneWithDelay(int argCount, OBJ *args) {
+	// playTone <freq> <delay>
+	// If freq > 0 and delay > 0, generate a 50% duty cycle square wave of the given frequency
+	// on the given pin. If freq <= 0 stop generating the square wave.
+	// Return true on success, false if primitive is not supported.
+	// Function added by Tom to support simpler sound commands from Hatchling
+
+	OBJ freqArg = args[0];
+	OBJ delayArg = args[1];
+	if (!isInt(delayArg) || !isInt(freqArg)) return falseObj;
+
+    // The buzzer is our default
+	int pin = DEFAULT_TONE_PIN;
+
+	SET_MODE(pin, OUTPUT);
+	int frequency = obj2int(freqArg);
+	int delayMilli = obj2int(delayArg);
+    // No single tones should play for less than 5 ms or more than 5 seconds
+	if ((frequency < 16) || (frequency > 100000) || (delayMilli < 5) || (delayMilli > 5000)) {
+		stopTone();
+		digitalWrite(pin, LOW);
+	} else {
+		setTone(pin, frequency);
+	}
+   // delay(delayMilli);
+	//stopTone();
+	//digitalWrite(pin, LOW);
+
+	return trueObj;
+}
+
 OBJ primHasServo(int argCount, OBJ *args) { return trueObj; }
 
 OBJ primSetServo(int argCount, OBJ *args) {
@@ -881,6 +913,7 @@ static OBJ primDigitalWrite2(int argCount, OBJ *args) { primDigitalWrite(args); 
 static PrimEntry entries[] = {
 	{"hasTone", primHasTone},
 	{"playTone", primPlayTone},
+	{"ptd", primPlayToneWithDelay}, // Added for Hatchling sound support
 	{"hasServo", primHasServo},
 	{"setServo", primSetServo},
 	{"softWriteByte", primSoftwareSerialWriteByte},
