@@ -100,7 +100,6 @@ extern Task tasks[MAX_TASKS];
 extern int taskCount;
 
 // Extra delay used to limit serial transmission speed
-
 extern int extraByteDelay;
 
 // Serial Protocol Messages: IDE -> Board
@@ -252,6 +251,7 @@ int serialConnected();
 int recvBytesBLE(uint8 *buf, int spaceAvailable);
 int recvBytes(uint8 *buf, int count);
 int sendByte(char aByte);
+void sendBLEPacket();
 void restartSerial();
 
 const char *boardType();
@@ -259,6 +259,8 @@ void hardwareInit(void);
 
 int readI2CReg(int deviceID, int reg);
 void writeI2CReg(int deviceID, int reg, int value);
+
+void setFancyName(const char *nameFromMac);
 
 // I/O Support
 
@@ -274,6 +276,11 @@ void stopTone();
 int readAnalogMicrophone();
 void showMicroBitPixels(int microBitDisplayBits, int xPos, int yPos);
 void readHatchlingSensors();
+void getHatchlingData(uint8 *hlData);
+int isBLEConnected(); // For checking BLE - Hatchling addition
+void setMBDisplay(int displayBits); // For controlling MB display - Hatchling addition
+void printCharDisplay(int charToPrint); // Additional function to control display
+
 // Primitives
 
 OBJ primNewList(int argCount, OBJ *args);

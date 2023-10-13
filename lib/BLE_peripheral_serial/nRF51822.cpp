@@ -187,16 +187,10 @@ nRF51822::~nRF51822() {
   this->end();
 }
 
-void nRF51822::begin(unsigned char advertisementDataSize,
-                      BLEEirData *advertisementData,
-                      unsigned char scanDataSize,
-                      BLEEirData *scanData,
-                      BLELocalAttribute** localAttributes,
-                      unsigned char numLocalAttributes,
-                      BLERemoteAttribute** remoteAttributes,
-                      unsigned char numRemoteAttributes)
+// Splitting begin function into two pieces so that we can get the mac address into the advertising data
+void nRF51822::enableBLE()
 {
-  int rc;
+  int rc; 
   enableSoftDevice();
   configureBLE();
 
@@ -233,6 +227,19 @@ void nRF51822::begin(unsigned char advertisementDataSize,
 		Serial.println();
 	}
   #endif
+
+}
+
+void nRF51822::begin(unsigned char advertisementDataSize,
+                      BLEEirData *advertisementData,
+                      unsigned char scanDataSize,
+                      BLEEirData *scanData,
+                      BLELocalAttribute** localAttributes,
+                      unsigned char numLocalAttributes,
+                      BLERemoteAttribute** remoteAttributes,
+                      unsigned char numRemoteAttributes)
+{
+  int rc;
 
   #ifdef NRF_51822_DEBUG
 	ble_version_t version;

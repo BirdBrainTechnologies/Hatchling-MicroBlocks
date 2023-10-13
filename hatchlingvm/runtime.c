@@ -479,6 +479,8 @@ static inline void sendData() {
 		if (!sendByte(outBuf[outBufStart])) break;
 		outBufStart = (outBufStart + 1) & OUTBUF_MASK;
 	}
+	// Send a BLE packet every time you've sent your whole buffer
+	sendBLEPacket();
 }
 
 static inline void queueByte(uint8 aByte) {
@@ -502,6 +504,11 @@ static void sendMessage(int msgType, int chunkIndex, int dataSize, char *data) {
 		queueByte((dataSize >> 8) & 0xFF); // high byte of size
 		for (int i = 0; i < dataSize; i++) {
 			queueByte(data[i]);
+			// 253 indicates that a message is continuing to the next BLE packet
+			/*if(i%20 == 14)
+			{
+				queueByte(253);
+			}*/
 		}
 	}
 }

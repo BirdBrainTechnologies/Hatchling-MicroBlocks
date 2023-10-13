@@ -36,6 +36,10 @@ void BLESerial::begin(...) {
   #endif
 }
 
+const char* BLESerial::getLocalName() {
+  return BLEPeripheral::getLocalName();
+}
+
 void BLESerial::poll() {
   if (millis() < this->_lastFlushTime + FLUSH_MSECS) {
     BLEPeripheral::poll();

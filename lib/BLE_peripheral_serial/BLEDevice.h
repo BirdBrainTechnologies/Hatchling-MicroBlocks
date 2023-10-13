@@ -52,6 +52,8 @@ class BLEDevice
     void setConnectionInterval(unsigned short minimumConnectionInterval, unsigned short maximumConnectionInterval);
     void setConnectable(bool connectable);
 
+    virtual void enableBLE() { }
+
     virtual void begin(unsigned char /*advertisementDataSize*/,
                 BLEEirData * /*advertisementData*/,
                 unsigned char /*scanDataSize*/,

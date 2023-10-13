@@ -32,6 +32,9 @@ int taskCount = 0;
 
 OBJ vars[MAX_VARS];
 
+// For Hatchling - set a fancy name array to flash in the vmLoop when no BLE connection has occurred
+char fancyName[8] = {'E',' ','R',' ','R',' ',' ',' '};
+
 // Error Reporting
 
 // When a primitive encounters an error, it calls fail() with an error code.
@@ -1262,21 +1265,78 @@ static void runTask(Task *task) {
 
 static int currentTaskIndex = -1;
 
+// Sets the fancy name to use in vmLoop
+void setFancyName(const char *nameFromMac)
+{
+	fancyName[0] = nameFromMac[0];
+	fancyName[2] = nameFromMac[1];
+	fancyName[4] = nameFromMac[2];
+}
+
 void vmLoop() {
 	// Run the next runnable task. Wake up any waiting tasks whose wakeup time has arrived.
 
 	int count = 0;
-  uint32 timeToSPI = microsecs();
+	int i = 0;
+	int initialCount = 0;
+	uint8 hlData[13]; // Array to hold Hatchling sensor data and port states
+    uint32 timeToSPI = microsecs();
+	uint32 timeToChange = millis();
+	uint32 timeToTransmit = millis();
+	int displayTime = 100;
+	bool isBLEConnect = false;
+	bool prevBLEConnect = false;
 
 	while (true) {
 		if (count-- < 0) {
 			// do background VM tasks once every N VM loop cycles
+		// Check if BLE is connected, and if it is not, print out a letter 'c' on the micro:bit display
       // With a single loop that turns on/off the user LED and the LED display every 333 us, I see:
       // Total loop time (from one high edge to the next high edge) varies between 60 and 150 us
       // With an empty loop it is 22 us
       // Uptime with an empty loop is 5.2 us
       // Uptime with a program varies from 5 us to 25 us
       
+	  	// Check if we're connected and if not, display our fancy initials to the display
+	    isBLEConnect = isBLEConnected();
+		if(!isBLEConnect && (millis() - timeToChange) > displayTime)
+		{
+			printCharDisplay(fancyName[initialCount]); // In theory, lower case 'c'
+			initialCount++;
+
+			// Make the display show the character for 0.7s with a 0.3s delay
+			if(displayTime == 700)
+				displayTime = 100;
+			else
+				displayTime = 700;
+			if(initialCount > 7)
+			{
+				initialCount = 0;
+			}
+
+			timeToChange = millis();
+		}
+		else if(isBLEConnect && !prevBLEConnect)
+		{
+			// clear the micro:bit display - this is only when you have just connected
+			setMBDisplay(0);
+			initialCount = 0; // Reset the counter for the next time you connect
+			displayTime = 100;
+		}
+		prevBLEConnect = isBLEConnect;
+
+		// If we are connected, send our sensor data every 500 ms
+		if(isBLEConnect && (millis() - timeToTransmit > 500))
+		{
+			sendByte(252);
+			getHatchlingData(hlData);
+			for(i = 0; i < 13; i++)
+			{
+				sendByte(hlData[i]);
+			}
+			timeToTransmit = millis();
+			sendBLEPacket(); // Sends all of the bytes we just collected in one packet, even though it is not 20 bytes
+		}
 
 		updateMicrobitDisplay();
 		checkButtons();
@@ -1286,11 +1346,11 @@ void vmLoop() {
       // Do this every 5 ms
 		if((microsecs() - timeToSPI) > 5000)
 			{
-				pinMode(1, OUTPUT);
-				digitalWrite(1, HIGH);
+				//pinMode(1, OUTPUT); Asserts pin 1, just used to check timing on a scope
+				//digitalWrite(1, HIGH);
 				readHatchlingSensors(); // This function currently takes 260 us
 				timeToSPI = microsecs(); // Update time
-				digitalWrite(1, LOW);
+				//digitalWrite(1, LOW);
 			}
 
 			count = 25; // must be under 30 when building on mbed to avoid serial errors

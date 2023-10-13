@@ -21,8 +21,10 @@
 #include <BLEPeripheral.h>
 #include "BLESerial.h"
 #include "nrf_sdm.h"
+#include "Naming.h"
 
 BLESerial bleSerial;
+//char initials_name[10] = {'E', 'R', 'R', '-', '-', '0', '0', '0', '0', '0'}; // Holds our name initials
 
 static void initBLE() {
 // 	nrf_clock_lf_cfg_t clock_lf_cfg = {
@@ -34,8 +36,12 @@ static void initBLE() {
 //  sd_softdevice_enable(&clock_lf_cfg, NULL); // fails!
 //	return; // Turning this off for now
 	sd_softdevice_enable(NULL, NULL);
-	bleSerial.setLocalName("MicroBlocks BLE");
 	bleSerial.begin();
+
+	// Get the local name (determined using the Mac address in the BLE Peripheral Class)
+	const char *initials_name = bleSerial.getLocalName();
+	// Set the first three initials - we'll flash these when the device is not yet connected
+	setFancyName(initials_name); // Sets the fancy name for the VM loop to flash
 }
 
 extern "C" int recvBytesBLE(uint8 *buf, int spaceAvailable) {
@@ -44,14 +50,15 @@ extern "C" int recvBytesBLE(uint8 *buf, int spaceAvailable) {
 	int bytesRead = bleSerial.available();
 	if (!bytesRead) return 0;
 	if (bytesRead > spaceAvailable) bytesRead = spaceAvailable;
-Serial.print(bytesRead);
-Serial.println(" bytes received");
+// Serial printing is just for testing
+//Serial.print(bytesRead);
+//Serial.println(" bytes received");
 	for (int i = 0; i < bytesRead; i++) {
 		buf[i] = bleSerial.read();
-Serial.print(buf[i]);
-Serial.print(" ");
+//Serial.print(buf[i]);
+//Serial.print(" ");
 	}
-Serial.println();
+//Serial.println();
 	return bytesRead;
 }
 /*
@@ -135,12 +142,25 @@ int recvBytes(uint8 *buf, int count) {
 }
 
 int sendByte(char aByte) {
-	return Serial.write(aByte);
+	int serialResponse = Serial.write(aByte);
+	int bleResponse = bleSerial.write(aByte); // Adding BLE function
+	return (serialResponse); // || bleResponse); // Could be and if we prefer to require both of them successfully sending
+}
+
+void sendBLEPacket() {
+	// Sends an outgoing packet even if we haven't reached 20 
+	bleSerial.flush();
 }
 
 void restartSerial() {
 	Serial.end();
 	Serial.begin(115200);
+}
+
+// Hatchling addition - returns connection status of BLE
+int isBLEConnected()
+{
+	return bleSerial.connected();
 }
 
 // General Purpose I/O Pins

@@ -48,8 +48,12 @@ static int spiMode = SPI_MODE0;
 #define ANALOG_SENSOR                    4             //Analog input
 #define DIGITAL_OUT                      5             //Software PWM Enabled Digital Output
 #define PORTOFF                          0             //Configured as digital input, start up state
-
 #define FAIRY_LIGHTS_ID         8
+
+// Hatchling battery thresholds
+#define HL_FULL_BATT                                 228                           //All leds green
+#define HL_BATT_THRESH1                              211							//Three yellow leds below this
+#define HL_BATT_THRESH2                              194							//One red LED below this
 
 // Port ID values - basically, what raw analog sensor reading corresponds to what specific component?
 static const uint8_t id_values[TOTAL_POSSIBLE_ACCESSORIES] = {255, 10, 21, 32, 44, 56, 66, 77, 87, 97, 107, 118, 128, 138, 147, 156, 165, 174, 183, 192, 201, 210, 219, 228, 236, 245};
@@ -83,6 +87,40 @@ static void initSPI() {
 	setPinMode(PIN_SPI_MOSI, OUTPUT);
 	SPI.begin();
 	SPI.beginTransaction(SPISettings(spiSpeed, MSBFIRST, spiMode));
+}
+
+void getHatchlingData(uint8 *hlData)
+{
+    int i = 0;
+    // Copy the sensor data into the array
+    for(i= 0; i < GP_PORT_TOTAL; i++)
+    {
+        hlData[i] = GPSensorValues[i];
+    }
+    // Copy the port states into the array
+    for(i= 0; i < GP_PORT_TOTAL; i++)
+    {
+        hlData[i+GP_PORT_TOTAL] = GP_ID_vals[i];
+    }  
+    hlData[12] = hatchlingSPISensors[20];
+        // Stuff battery report into 2 bits - this will need to be updated as the thresholds are wrong
+    if(hlData[12] < HL_BATT_THRESH2)
+    {
+        hlData[12] = 0; // red LED
+    }
+    else if(hlData[12] < HL_BATT_THRESH1)
+    {
+        hlData[12] = 1; // yellow LEDs
+    }
+    else if(hlData[12] < HL_FULL_BATT)
+    {
+        hlData[12] = 2; // 3 green LEDs
+    }
+    else
+    {
+        hlData[12] = 3; // 4 green LEDs
+    }
+
 }
 
 void setPortsViaSPI()

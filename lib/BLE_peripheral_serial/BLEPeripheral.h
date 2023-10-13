@@ -41,7 +41,7 @@ class BLEPeripheral : public BLEDeviceEventListener,
     void setServiceSolicitationUuid(const char* serviceSolicitationUuid);
     void setManufacturerData(const unsigned char manufacturerData[], unsigned char manufacturerDataLength);
     void setLocalName(const char *localName);
-
+    const char* getLocalName();
     void setAdvertisingInterval(unsigned short advertisingInterval);
     // connection intervals in 1.25 ms increments,
     // must be between  0x0006 (7.5 ms) and 0x0c80 (4 s), values outside of this range will be ignored

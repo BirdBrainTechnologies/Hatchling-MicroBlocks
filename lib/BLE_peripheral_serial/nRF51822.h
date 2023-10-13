@@ -61,6 +61,8 @@ class nRF51822 : public BLEDevice {
 
     virtual ~nRF51822();
 
+    virtual void enableBLE(); // Added for Hatchling - splitting initialization in two so I can get the Mac address into the name
+
     virtual void begin(unsigned char advertisementDataSize,
                 BLEEirData *advertisementData,
                 unsigned char scanDataSize,

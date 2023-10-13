@@ -7,6 +7,7 @@
 #include "BLEDeviceLimits.h"
 #include "BLEUtil.h"
 #include "BLEPeripheral.h"
+#include "Naming.h"
 
 //#define BLE_PERIPHERAL_DEBUG
 
@@ -40,9 +41,11 @@ BLEPeripheral::BLEPeripheral() :
   {
     this->_device = &this->_nRF51822;
     memset(this->_eventHandlers, 0x00, sizeof(this->_eventHandlers));
+
+    this->_device->setEventListener(this);
+
     this->setDeviceName(DEFAULT_DEVICE_NAME);
     this->setAppearance(DEFAULT_APPEARANCE);
-    this->_device->setEventListener(this);
   }
 
 BLEPeripheral::~BLEPeripheral() {
@@ -106,19 +109,35 @@ void BLEPeripheral::begin() {
       remainingAdvertisementDataLength -= dataLength + 2;
     }
   }
+    // Added this for Hatchling to auto-determine the name from the Mac Address
+    // Does not work as we need to "begin" the softdevice to get an address, but we need to not advertise until we have the mac address
+    // So we need a separate function to "start advertising" - same as with the bluetooth code
 
-  if (this->_localName){
-    unsigned char localNameLength = strlen(this->_localName);
-    scanData.length = localNameLength;
+    this->_device->enableBLE();
 
+    ble_gap_addr_t mac;
+    sd_ble_gap_addr_get(&mac);
+    char initials_name[10] = {'E', 'R', 'R', '-', '-', '0', '0', '0', '0', '0'}; // Holds our name initials
+    getInitials_fancyName(initials_name, mac.addr[2], mac.addr[1], mac.addr[0]);
+
+    this->_localName = initials_name;
+  //  unsigned char localNameLength = strlen(this->_localName);
+
+
+//  if (this->_localName){
+//    unsigned char localNameLength = strlen(this->_localName);
+//    Serial.print(localNameLength);
+    // For some reason using strlen on the localName gives a length of 22, so this is hardcoded to the correct length
+    scanData.length = 10; //localNameLength;
+/*
     if (scanData.length > BLE_SCAN_DATA_MAX_VALUE_LENGTH) {
       scanData.length = BLE_SCAN_DATA_MAX_VALUE_LENGTH;
-    }
+    }*/
 
-    scanData.type = (localNameLength > scanData.length) ? 0x08 : 0x09;
+    scanData.type = 0x08; //(localNameLength > scanData.length) ? 0x08 : 0x09;
 
     memcpy(scanData.data, this->_localName, scanData.length);
-  }
+  //}
 
   if (this->_localAttributes == NULL) {
     this->initLocalAttributes();
@@ -179,6 +198,12 @@ void BLEPeripheral::setManufacturerData(const unsigned char manufacturerData[], 
 void BLEPeripheral::setLocalName(const char* localName) {
   this->_localName = localName;
 }
+
+const char* BLEPeripheral::getLocalName() {
+  return this->_localName;
+}
+
+
 
 void BLEPeripheral::setConnectable(bool connectable) {
   this->_device->setConnectable(connectable);

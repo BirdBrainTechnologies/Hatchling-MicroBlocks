@@ -12,6 +12,7 @@ class BLESerial : public BLEPeripheral, public Stream
     BLESerial();
 
     void begin(...);
+    const char* getLocalName();
     void poll();
     void end();
 
@@ -35,7 +36,7 @@ class BLESerial : public BLEPeripheral, public Stream
     size_t _rxCount() const;
     uint8_t _rxBuffer[RX_BUFFER_SIZE];
     size_t _txCount;
-    uint8_t _txBuffer[BLE_ATTRIBUTE_MAX_VALUE_LENGTH];
+    uint8_t _txBuffer[BLE_ATTRIBUTE_MAX_VALUE_LENGTH]; // Currently set to 20 bytes/packet
     unsigned long _lastFlushTime;
 
     // Changing the UUIDs to be random and not the standard ones from Nordic
