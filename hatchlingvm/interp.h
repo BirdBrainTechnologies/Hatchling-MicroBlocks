@@ -280,6 +280,8 @@ void getHatchlingData(uint8 *hlData);
 int isBLEConnected(); // For checking BLE - Hatchling addition
 void setMBDisplay(int displayBits); // For controlling MB display - Hatchling addition
 void printCharDisplay(int charToPrint); // Additional function to control display
+void showLEDCode(); // Sets the neopixels to a color code based on Mac Address
+void stopHatchling(); // Turns off attached servos/LEDs
 
 // Primitives
 

@@ -1283,98 +1283,113 @@ void vmLoop() {
     uint32 timeToSPI = microsecs();
 	uint32 timeToChange = millis();
 	uint32 timeToTransmit = millis();
+	uint32 startTime = millis();
 	int displayTime = 100;
+	int timeOut = 15000; // The Hatchling will stop displaying its initials and color code after 15 seconds (or earlier if BLE gets connected)
 	bool isBLEConnect = false;
 	bool prevBLEConnect = false;
+	bool advertisingTimeOver = false; 
 
 	while (true) {
 		if (count-- < 0) {
-			// do background VM tasks once every N VM loop cycles
-		// Check if BLE is connected, and if it is not, print out a letter 'c' on the micro:bit display
-      // With a single loop that turns on/off the user LED and the LED display every 333 us, I see:
-      // Total loop time (from one high edge to the next high edge) varies between 60 and 150 us
-      // With an empty loop it is 22 us
-      // Uptime with an empty loop is 5.2 us
-      // Uptime with a program varies from 5 us to 25 us
-      
-	  	// Check if we're connected and if not, display our fancy initials to the display
-	    isBLEConnect = isBLEConnected();
-		if(!isBLEConnect && (millis() - timeToChange) > displayTime)
-		{
-			printCharDisplay(fancyName[initialCount]); // In theory, lower case 'c'
-			initialCount++;
-
-			// Make the display show the character for 0.7s with a 0.3s delay
-			if(displayTime == 700)
-				displayTime = 100;
-			else
-				displayTime = 700;
-			if(initialCount > 7)
+				// do background VM tasks once every N VM loop cycles
+		// With a single loop that turns on/off the user LED and the LED display every 333 us, I see:
+		// Total loop time (from one high edge to the next high edge) varies between 60 and 150 us
+		// With an empty loop it is 22 us
+		// Uptime with an empty loop is 5.2 us
+		// Uptime with a program varies from 5 us to 25 us
+		
+			// Check if we're connected and if not, display our fancy initials to the display
+			isBLEConnect = isBLEConnected();
+			if(!isBLEConnect && (millis() - timeToChange) > displayTime && !advertisingTimeOver)
 			{
-				initialCount = 0;
+				printCharDisplay(fancyName[initialCount]); // In theory, lower case 'c'
+				initialCount++;
+
+				// Make the display show the character for 0.7s with a 0.3s delay
+				if(displayTime == 700)
+					displayTime = 100;
+				else
+					displayTime = 700;
+				if(initialCount > 7)
+				{
+					initialCount = 0;
+				}
+
+				timeToChange = millis();
+					
+				if(timeToChange - startTime > 2500)
+					showLEDCode(); // Show the LED code after the device has been on for 2.5 seconds
+
+				if(timeToChange - startTime > timeOut)
+					advertisingTimeOver = true;
+			}
+			if(isBLEConnect && !prevBLEConnect)
+			{
+				// clear the micro:bit display - this is only when you have just connected
+				setMBDisplay(0);
+				advertisingTimeOver = true;
+			//	initialCount = 0; // Reset the counter for the next time you connect
+			//	displayTime = 100;
+			}
+			prevBLEConnect = isBLEConnect;
+
+			// If we are connected, send our sensor data every 500 ms
+			if(isBLEConnect && (millis() - timeToTransmit > 500))
+			{
+				sendByte(252);
+				getHatchlingData(hlData);
+				for(i = 0; i < 13; i++)
+				{
+					sendByte(hlData[i]);
+				}
+				timeToTransmit = millis();
+				sendBLEPacket(); // Sends all of the bytes we just collected in one packet, even though it is not 20 bytes
 			}
 
-			timeToChange = millis();
-		}
-		else if(isBLEConnect && !prevBLEConnect)
-		{
-			// clear the micro:bit display - this is only when you have just connected
-			setMBDisplay(0);
-			initialCount = 0; // Reset the counter for the next time you connect
-			displayTime = 100;
-		}
-		prevBLEConnect = isBLEConnect;
-
-		// If we are connected, send our sensor data every 500 ms
-		if(isBLEConnect && (millis() - timeToTransmit > 500))
-		{
-			sendByte(252);
-			getHatchlingData(hlData);
-			for(i = 0; i < 13; i++)
-			{
-				sendByte(hlData[i]);
-			}
-			timeToTransmit = millis();
-			sendBLEPacket(); // Sends all of the bytes we just collected in one packet, even though it is not 20 bytes
-		}
-
-		updateMicrobitDisplay();
-		checkButtons();
-      // Could add check accelerometer for shake, checking for claps, etc here - TOM NOTE
-		processMessage();
-      // Check if it is time to get a sensor reading from Hatchling to check port states, attached sensor values
-      // Do this every 5 ms
-		if((microsecs() - timeToSPI) > 5000)
-			{
-				//pinMode(1, OUTPUT); Asserts pin 1, just used to check timing on a scope
-				//digitalWrite(1, HIGH);
-				readHatchlingSensors(); // This function currently takes 260 us
-				timeToSPI = microsecs(); // Update time
-				//digitalWrite(1, LOW);
-			}
+			updateMicrobitDisplay();
+			checkButtons();
+			// Could add check accelerometer for shake, checking for claps, etc here - TOM NOTE
+			processMessage();
+			// Check if it is time to get a sensor reading from Hatchling to check port states, attached sensor values
+			// Do this every 5 ms
+			if((microsecs() - timeToSPI) > 5000 && advertisingTimeOver)
+				{
+					//pinMode(1, OUTPUT); Asserts pin 1, just used to check timing on a scope
+					//digitalWrite(1, HIGH);
+					readHatchlingSensors(); // This function currently takes 260 us
+					timeToSPI = microsecs(); // Update time
+					//digitalWrite(1, LOW);
+				}
 
 			count = 25; // must be under 30 when building on mbed to avoid serial errors
 		}
-		int runCount = 0;
-		uint32 usecs = 0; // compute times only the first time they are needed
-		for (int t = 0; t < taskCount; t++) {
-			currentTaskIndex++;
-			if (currentTaskIndex >= taskCount) currentTaskIndex = 0;
-			Task *task = &tasks[currentTaskIndex];
-			if (unusedTask == task->status) {
-				continue;
-			} else if (running == task->status) {
-				runTask(task);
-				runCount++;
-				break;
-			} else if (waiting_micros == task->status) {
-				if (!usecs) usecs = microsecs(); // get usecs
-				if ((usecs - task->wakeTime) < RECENT) task->status = running;
-			}
-			if (running == task->status) {
-				runTask(task);
-				runCount++;
-				break;
+
+		// Execute all of the tasks in the VM
+		// Don't start executing until 15 seconds have elapsed or until BLE has connected
+		if(advertisingTimeOver)
+		{
+			int runCount = 0;
+			uint32 usecs = 0; // compute times only the first time they are needed
+			for (int t = 0; t < taskCount; t++) {
+				currentTaskIndex++;
+				if (currentTaskIndex >= taskCount) currentTaskIndex = 0;
+				Task *task = &tasks[currentTaskIndex];
+				if (unusedTask == task->status) {
+					continue;
+				} else if (running == task->status) {
+					runTask(task);
+					runCount++;
+					break;
+				} else if (waiting_micros == task->status) {
+					if (!usecs) usecs = microsecs(); // get usecs
+					if ((usecs - task->wakeTime) < RECENT) task->status = running;
+				}
+				if (running == task->status) {
+					runTask(task);
+					runCount++;
+					break;
+				}
 			}
 		}
 	}

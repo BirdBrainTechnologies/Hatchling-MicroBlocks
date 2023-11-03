@@ -1040,6 +1040,7 @@ static void processShortMessage() {
 	case stopAllMsg:
 		stopAllTasks();
 		softReset(false);
+		stopHatchling();
 		outputString("All tasks stopped");
 		break;
 	case getVarMsg:
