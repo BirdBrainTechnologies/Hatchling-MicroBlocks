@@ -33,7 +33,7 @@ int taskCount = 0;
 OBJ vars[MAX_VARS];
 
 // For Hatchling - set a fancy name array to flash in the vmLoop when no BLE connection has occurred
-char fancyName[8] = {'E',' ','R',' ','R',' ',' ',' '};
+//char fancyName[8] = {'E',' ','R',' ','R',' ',' ',' '};
 
 // Error Reporting
 
@@ -50,6 +50,12 @@ OBJ fail(uint8 errCode) {
 
 int failure() {
 	return errorCode != noError;
+}
+
+void taskSleep(int msecs) {
+	// Make the current task sleep for the given number of milliseconds to free up cycles.
+	taskSleepMSecs = msecs;
+	errorCode = sleepSignal;
 }
 
 // Printing
@@ -215,6 +221,16 @@ OBJ primBoardType() {
 
 // Misc primitives
 
+static OBJ primModulo(int argCount, OBJ *args) {
+	int n = evalInt(args[0]);
+	int modulus = evalInt(args[1]);
+	if (0 == modulus) return fail(zeroDivide);
+	if (modulus < 0) modulus = -modulus;
+	int result = n % modulus;
+	if (result < 0) result += modulus;
+	return int2obj(result);
+}
+
 static OBJ primRandom(int argCount, OBJ *args) {
 	int first = 1, last = 100; // defaults for zero arguments
 	if (argCount == 1) { // use range [1..arg]
@@ -312,6 +328,16 @@ static int stringsEqual(OBJ obj1, OBJ obj2) {
 	return true;
 }
 
+static OBJ argOrDefault(OBJ *fp, int argNum, OBJ defaultValue) {
+	// Useful for working with optional arguments.
+	// Return the given argument or defaultValue if the argument was not supplied by the caller.
+
+	if (argNum < 1) return defaultValue; // argNum index is 1-based
+	int actualArgCount = obj2int(*(fp - 3));
+	if (argNum > actualArgCount) return defaultValue; // argument not supplied, return default
+	return *(fp - (4 + actualArgCount) + argNum); // return the desired argument
+}
+
 static int functionNameMatches(int chunkIndex, char *functionName) {
 	// Return true if given chunk is the function with the given function name.
 	// by checking the function name in the function's metadata.
@@ -351,10 +377,11 @@ static int functionNameMatches(int chunkIndex, char *functionName) {
 static int chunkIndexForFunction(char *functionName) {
 	// Return the chunk index for the function with the given name or -1 if not found.
 
+	int nameLength = strlen(functionName);
 	for (int i = 0; i < MAX_CHUNKS; i++) {
 		int chunkType = chunks[i].chunkType;
 		if (functionHat == chunkType) {
-			if (broadcastMatches(i, functionName, strlen(functionName))) return i;
+			if (broadcastMatches(i, functionName, nameLength)) return i;
 			if (functionNameMatches(i, functionName)) return i;
 		}
 	}
@@ -364,13 +391,16 @@ static int chunkIndexForFunction(char *functionName) {
 PrimitiveFunction findPrimitive(char *namedPrimitive);
 
 static int findCallee(char *functionOrPrimitiveName) {
+	// Look for a primitive match first since that is fast
+	PrimitiveFunction f = findPrimitive(functionOrPrimitiveName);
+	if (f) return (int) f;
+
+	// Look for a user-defined function match (slow if no match found!)
 	int result = chunkIndexForFunction(functionOrPrimitiveName);
 	if (result >= 0) return (0xFFFFFF00 | result); // set top 24 bits to show callee is a chunk
 	// assume: result < 256 (MAX_CHUNKS) so it fits in low 8 bits
 
-	PrimitiveFunction f = findPrimitive(functionOrPrimitiveName);
-	if (f) return (int) f;
-
+	fail(primitiveNotImplemented);
 	return -1;
 }
 
@@ -477,7 +507,7 @@ static void runTask(Task *task) {
 		&&longMultiply_op,
 		&&isType_op,
 		&&jmpFalse_op, // this is the waitUntil opcode, an alias for jmpFalse_op
-		&&pop_op,  // this is the ignoreArgs opcode, an alias for pop_op
+		&&pop_op, // this is the ignoreArgs opcode, an alias for pop_op
 		&&newList_op,
 		&&RESERVED_op,
 		&&fillList_op,
@@ -496,7 +526,7 @@ static void runTask(Task *task) {
 		&&logData_op,
 		&&boardType_op,
 		&&comment_op,
-		&&RESERVED_op,
+		&&argOrDefault_op,
 		&&RESERVED_op,
 		&&analogPins_op,
 		&&digitalPins_op,
@@ -942,8 +972,7 @@ static void runTask(Task *task) {
 		POP_ARGS_REPORTER();
 		DISPATCH();
 	modulo_op:
-		tmp = evalInt(*(sp - 1));
-		*(sp - arg) = ((0 == tmp) ? fail(zeroDivide) : int2obj(evalInt(*(sp - 2)) % tmp));
+		*(sp - arg) = primModulo(arg, sp - arg);
 		POP_ARGS_REPORTER();
 		DISPATCH();
 	absoluteValue_op:
@@ -1054,7 +1083,7 @@ static void runTask(Task *task) {
 		POP_ARGS_COMMAND();
 		DISPATCH();
 	sayIt_op:
-		if (!serialConnected()) {
+		if (!ideConnected()) {
 			POP_ARGS_COMMAND(); // serial port not open; do nothing
 			DISPATCH();
 		}
@@ -1070,7 +1099,7 @@ static void runTask(Task *task) {
 		task->wakeTime = microsecs() + (extraByteDelay * (printBufferByteCount + 6));
 		goto suspend;
 	logData_op:
-		if (!serialConnected()) {
+		if (!ideConnected()) {
 			POP_ARGS_COMMAND(); // serial port not open; do nothing
 			DISPATCH();
 		}
@@ -1091,6 +1120,16 @@ static void runTask(Task *task) {
 		DISPATCH();
 	comment_op:
 		POP_ARGS_COMMAND();
+		DISPATCH();
+	argOrDefault_op:
+		if (arg < 2) {
+			*(sp - arg) = fail(notEnoughArguments); // not enough arguments to primitive
+		} else if (fp <= task->stack) {
+			*(sp - arg) = *(sp - 1); // not in a function call; return default value
+		} else {
+			*(sp - arg) = argOrDefault(fp, obj2int(*(sp - 2)), *(sp - 1));
+		}
+		POP_ARGS_REPORTER();
 		DISPATCH();
 
 	// I/O operations:
@@ -1209,6 +1248,7 @@ static void runTask(Task *task) {
 	callCustomCommand_op:
 	callCustomReporter_op:
 		if (arg > 0) {
+			taskSleep(-1); // do background VM tasks sooner
 			uint32 callee = -1;
 			OBJ params = *(sp - 1); // save the parameters array, if any
 			// look up the function or primitive name
@@ -1266,20 +1306,19 @@ static void runTask(Task *task) {
 static int currentTaskIndex = -1;
 
 // Sets the fancy name to use in vmLoop
-void setFancyName(const char *nameFromMac)
+/*void setFancyName(const char *nameFromMac)
 {
 	fancyName[0] = nameFromMac[0];
 	fancyName[2] = nameFromMac[1];
 	fancyName[4] = nameFromMac[2];
-}
-
+}*/
 void vmLoop() {
 	// Run the next runnable task. Wake up any waiting tasks whose wakeup time has arrived.
 
 	int count = 0;
 	int i = 0;
 	int initialCount = 0;
-	uint8 hlData[13]; // Array to hold Hatchling sensor data and port states
+	uint8 hlData[8]; // Array to hold Hatchling sensor data and port states
     uint32 timeToSPI = microsecs();
 	uint32 timeToChange = millis();
 	uint32 timeToTransmit = millis();
@@ -1289,108 +1328,109 @@ void vmLoop() {
 	bool isBLEConnect = false;
 	bool prevBLEConnect = false;
 	bool advertisingTimeOver = false; 
-
 	while (true) {
 		if (count-- < 0) {
-				// do background VM tasks once every N VM loop cycles
-		// With a single loop that turns on/off the user LED and the LED display every 333 us, I see:
-		// Total loop time (from one high edge to the next high edge) varies between 60 and 150 us
-		// With an empty loop it is 22 us
-		// Uptime with an empty loop is 5.2 us
-		// Uptime with a program varies from 5 us to 25 us
-		
-			// Check if we're connected and if not, display our fancy initials to the display
-			isBLEConnect = isBLEConnected();
-			if(!isBLEConnect && (millis() - timeToChange) > displayTime && !advertisingTimeOver)
+			// do background VM tasks once every N VM loop cycles
+      // With a single loop that turns on/off the user LED and the LED display every 333 us, I see:
+      // Total loop time (from one high edge to the next high edge) varies between 60 and 150 us
+      // With an empty loop it is 22 us
+      // Uptime with an empty loop is 5.2 us
+      // Uptime with a program varies from 5 us to 25 us
+
+	  
+		// Check if we're connected and if not, display our fancy initials to the display
+		/*isBLEConnect = isBLEConnected();
+		if(!isBLEConnect && (millis() - timeToChange) > displayTime && !advertisingTimeOver)
+		{
+			printCharDisplay(fancyName[initialCount]); // In theory, lower case 'c'
+			initialCount++;
+
+			// Make the display show the character for 0.7s with a 0.3s delay
+			if(displayTime == 700)
+				displayTime = 100;
+			else
+				displayTime = 700;
+			if(initialCount > 7)
 			{
-				printCharDisplay(fancyName[initialCount]); // In theory, lower case 'c'
-				initialCount++;
-
-				// Make the display show the character for 0.7s with a 0.3s delay
-				if(displayTime == 700)
-					displayTime = 100;
-				else
-					displayTime = 700;
-				if(initialCount > 7)
-				{
-					initialCount = 0;
-				}
-
-				timeToChange = millis();
-					
-				if(timeToChange - startTime > 2500)
-					showLEDCode(); // Show the LED code after the device has been on for 2.5 seconds
-
-				if(timeToChange - startTime > timeOut)
-					advertisingTimeOver = true;
+				initialCount = 0;
 			}
-			if(isBLEConnect && !prevBLEConnect)
-			{
-				// clear the micro:bit display - this is only when you have just connected
-				setMBDisplay(0);
+
+			timeToChange = millis();
+				
+			if(timeToChange - startTime > 2500)
+				showLEDCode(); // Show the LED code after the device has been on for 2.5 seconds
+
+			if(timeToChange - startTime > timeOut)
 				advertisingTimeOver = true;
-			//	initialCount = 0; // Reset the counter for the next time you connect
-			//	displayTime = 100;
-			}
-			prevBLEConnect = isBLEConnect;
-
-			// If we are connected, send our sensor data every 500 ms
-			if(isBLEConnect && (millis() - timeToTransmit > 500))
+		}
+		if(isBLEConnect && !prevBLEConnect)
+		{
+			// clear the micro:bit display - this is only when you have just connected
+			setMBDisplay(0);
+			advertisingTimeOver = true;
+		//	initialCount = 0; // Reset the counter for the next time you connect
+		//	displayTime = 100;
+		}
+		prevBLEConnect = isBLEConnect;
+*/
+		// Send our sensor data every 500 ms
+		if(millis()-timeToTransmit > 500)
+		{
+			//queueByte(252);
+			getHatchlingData(hlData);
+		/*	for(i = 0; i < 13; i++)
 			{
-				sendByte(252);
-				getHatchlingData(hlData);
-				for(i = 0; i < 13; i++)
-				{
-					sendByte(hlData[i]);
-				}
-				timeToTransmit = millis();
-				sendBLEPacket(); // Sends all of the bytes we just collected in one packet, even though it is not 20 bytes
-			}
+				queueByte(hlData[i]);
+			}*/
+			sendBroadcastToIDE(hlData, 8); // Send port states and other HL sensors
+			timeToTransmit = millis();
+			//sendData(); // Sends all of the bytes we just collected in one packet, even though it is not 20 bytes
+		}
 
-			updateMicrobitDisplay();
-			checkButtons();
-			// Could add check accelerometer for shake, checking for claps, etc here - TOM NOTE
-			processMessage();
-			// Check if it is time to get a sensor reading from Hatchling to check port states, attached sensor values
-			// Do this every 5 ms
-			if((microsecs() - timeToSPI) > 5000 && advertisingTimeOver)
-				{
-					//pinMode(1, OUTPUT); Asserts pin 1, just used to check timing on a scope
-					//digitalWrite(1, HIGH);
-					readHatchlingSensors(); // This function currently takes 260 us
-					timeToSPI = microsecs(); // Update time
-					//digitalWrite(1, LOW);
-				}
+
+		updateMicrobitDisplay();
+		checkButtons();
+      // Could add check accelerometer for shake, checking for claps, etc here - TOM NOTE
+		processMessage();
+      // Check if it is time to get a sensor reading from Hatchling to check port states, attached sensor values
+      // Do this every 5 ms
+      if((microsecs() - timeToSPI) > 5000) //&& advertisingTimeOver)
+      {
+        //pinMode(1, OUTPUT);
+        //digitalWrite(1, HIGH);
+        readHatchlingSensors(); // This function currently takes 260 us
+        timeToSPI = microsecs(); // Update time
+        //digitalWrite(1, LOW);
+      }
 
 			count = 25; // must be under 30 when building on mbed to avoid serial errors
 		}
 
 		// Execute all of the tasks in the VM
-		// Don't start executing until 15 seconds have elapsed or until BLE has connected
-		if(advertisingTimeOver)
-		{
-			int runCount = 0;
-			uint32 usecs = 0; // compute times only the first time they are needed
-			for (int t = 0; t < taskCount; t++) {
-				currentTaskIndex++;
-				if (currentTaskIndex >= taskCount) currentTaskIndex = 0;
-				Task *task = &tasks[currentTaskIndex];
-				if (unusedTask == task->status) {
-					continue;
-				} else if (running == task->status) {
-					runTask(task);
-					runCount++;
-					break;
-				} else if (waiting_micros == task->status) {
-					if (!usecs) usecs = microsecs(); // get usecs
-					if ((usecs - task->wakeTime) < RECENT) task->status = running;
-				}
-				if (running == task->status) {
-					runTask(task);
-					runCount++;
-					break;
-				}
+		//if(advertisingTimeOver)
+		//{
+		int runCount = 0;
+		uint32 usecs = 0; // compute times only the first time they are needed
+		for (int t = 0; t < taskCount; t++) {
+			currentTaskIndex++;
+			if (currentTaskIndex >= taskCount) currentTaskIndex = 0;
+			Task *task = &tasks[currentTaskIndex];
+			if (unusedTask == task->status) {
+				continue;
+			} else if (running == task->status) {
+				runTask(task);
+				runCount++;
+				break;
+			} else if (waiting_micros == task->status) {
+				if (!usecs) usecs = microsecs(); // get usecs
+				if ((usecs - task->wakeTime) < RECENT) task->status = running;
+			}
+			if (running == task->status) {
+				runTask(task);
+				runCount++;
+				break;
 			}
 		}
+		//}
 	}
 }

@@ -15,8 +15,6 @@
 
 #include "mem.h"
 #include "interp.h"
-#include "ble_gap.h"
-//#include "ioPrims.cpp"
 
 static int spiSpeed = 1000000;
 static int spiMode = SPI_MODE0;
@@ -49,12 +47,13 @@ static int spiMode = SPI_MODE0;
 #define ANALOG_SENSOR                    4             //Analog input
 #define DIGITAL_OUT                      5             //Software PWM Enabled Digital Output
 #define PORTOFF                          0             //Configured as digital input, start up state
+
 #define FAIRY_LIGHTS_ID         8
 
 // Hatchling battery thresholds
 #define HL_FULL_BATT                                 228                           //All leds green
 #define HL_BATT_THRESH1                              211							//Three yellow leds below this
-#define HL_BATT_THRESH2                              194							//One red LED below this
+#define HL_BATT_THRESH2                              194	
 
 // Port ID values - basically, what raw analog sensor reading corresponds to what specific component?
 static const uint8_t id_values[TOTAL_POSSIBLE_ACCESSORIES] = {255, 10, 21, 32, 44, 56, 66, 77, 87, 97, 107, 118, 128, 138, 147, 156, 165, 174, 183, 192, 201, 210, 219, 228, 236, 245};
@@ -93,34 +92,35 @@ static void initSPI() {
 void getHatchlingData(uint8 *hlData)
 {
     int i = 0;
+    hlData[0] = 252; // All other returns start with 250 or 251
     // Copy the sensor data into the array
-    for(i= 0; i < GP_PORT_TOTAL; i++)
+    /*for(i= 1; i < GP_PORT_TOTAL+1; i++)
     {
-        hlData[i] = GPSensorValues[i];
-    }
+        hlData[i] = GPSensorValues[i-1];
+    }*/
     // Copy the port states into the array
-    for(i= 0; i < GP_PORT_TOTAL; i++)
+    for(i= 1; i < GP_PORT_TOTAL+1; i++)
     {
-        hlData[i+GP_PORT_TOTAL] = GP_ID_vals[i];
+        hlData[i] = GP_ID_vals[i-1];
     }  
-    hlData[12] = hatchlingSPISensors[20];
+    hlData[7] = hatchlingSPISensors[20];
         // Stuff battery report into 2 bits - this will need to be updated as the thresholds are wrong
-    if(hlData[12] < HL_BATT_THRESH2)
+    /*if(hlData[13] < HL_BATT_THRESH2)
     {
-        hlData[12] = 0; // red LED
+        hlData[13] = 0; // red LED
     }
-    else if(hlData[12] < HL_BATT_THRESH1)
+    else if(hlData[13] < HL_BATT_THRESH1)
     {
-        hlData[12] = 1; // yellow LEDs
+        hlData[13] = 1; // yellow LEDs
     }
-    else if(hlData[12] < HL_FULL_BATT)
+    else if(hlData[13] < HL_FULL_BATT)
     {
-        hlData[12] = 2; // 3 green LEDs
+        hlData[13] = 2; // 3 green LEDs
     }
     else
     {
-        hlData[12] = 3; // 4 green LEDs
-    }
+        hlData[13] = 3; // 4 green LEDs
+    }*/
 
 }
 
@@ -131,7 +131,8 @@ void setPortsViaSPI()
 
     initSPI(); // Does begin transaction in there
     // Transfer the command that sets the values of all of the ports
-    for (int i = 0; i < SPICMDLENGTH; i++) {
+    SPI.transfer(HATCHLING_SET_GP_PORTS);
+    for (int i = 1; i < SPICMDLENGTH; i++) {
         SPI.transfer(PortValuesCommand[i]);
     }
     SPI.endTransaction();
@@ -171,6 +172,7 @@ OBJ primFairyLights(int argCount, OBJ *args) {
     }
     return falseObj;
 }
+
 
 // Function to control attached position servo
 OBJ primPositionServos(int argCount, OBJ *args) {
@@ -227,8 +229,14 @@ OBJ primRotationServos(int argCount, OBJ *args) {
     if(GP_ID_vals[pinNum] > 0 && GP_ID_vals[pinNum] < 7) 
     {
         // Convert value to something useful for rotation servos
-        value = value/3 + 90;
-
+        if(value == 0)
+        { 
+            value = 0;
+        }
+        else
+        {
+            value = value/3 + 90;
+        }
         // Set the appropriate part of the command 
         PortValuesCommand[pinNum*3 + 1] = 0;
         PortValuesCommand[pinNum*3 + 2] = 0;
@@ -393,6 +401,22 @@ OBJ primDistanceSensor(int argCount, OBJ *args) {
     }
     return int2obj(0);//falseObj;
 }
+// This is just for debugging for now
+OBJ primPortState(int argCount, OBJ *args) {
+
+    if (!IS_TYPE(args[0], StringType)) return fail(needsStringError);
+    int ch = obj2str(args[0])[0];
+    int pinNum = -1; // default value: invalid port
+    if (('A' <= ch) && (ch <= 'F')) pinNum = ch - 'A';
+    if (('a' <= ch) && (ch <= 'f')) pinNum = ch - 'a';
+
+	if (pinNum == -1)
+    {
+        return args[0];
+    }
+    // Return a value only if we have a distance sensor attached
+    return int2obj(Filtered_ID_Vals[pinNum]);
+}
 
 // Gets called from vmLoop approximately once every 5 ms. Initiates a read transaction and then organizes the data in all of the appropriate spots
 void readHatchlingSensors() {
@@ -428,7 +452,7 @@ void readHatchlingSensors() {
         else {
             for(int j = 1; j < TOTAL_POSSIBLE_ACCESSORIES; j++)
             {
-                if((Filtered_ID_Vals[i-14] < (id_values[j] + 5)) && (Filtered_ID_Vals[i-14] > (id_values[j] -5)))
+                if((Filtered_ID_Vals[i-14] < (id_values[j] + 7)) && (Filtered_ID_Vals[i-14] > (id_values[j] -7)))
                 {
                     GP_ID_vals_new[i-14] = j;
                     break; // break out of inner loop only
@@ -553,7 +577,7 @@ void readHatchlingSensors() {
 }
 
 // Sets hatchling LEDs to a color code based on mac address
-void showLEDCode()
+/*void showLEDCode()
 {
     ble_gap_addr_t mac;
     uint8_t HatchlingOnBoardLEDs[SPICMDLENGTH] = {HATCHLING_SET_ONBOARD_LEDS, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};  
@@ -595,7 +619,7 @@ void showLEDCode()
     SPI.endTransaction();
         
     digitalWrite(16, HIGH);
-}
+}*/
 
 // Sends the stop command to the Hatchling - turns off LEDs and servos
 void stopHatchling()
@@ -609,14 +633,13 @@ void stopHatchling()
     initSPI(); // Does begin transaction in there
     for (int i = 0; i < SPICMDLENGTH; i++) {
         SPI.transfer(stopCommand[i]);
+        PortValuesCommand[i] = 0; // Reset the port values command
     }
     SPI.endTransaction();
         
     digitalWrite(16, HIGH);
     memset(GP_ID_vals_compare, 31, GP_PORT_TOTAL); // Resetting the port identifiers to force an onboard LED update when we reconnect
 }
-
-
 static PrimEntry entries[] = {
 	{"rd", primHatchlingRead},
     {"fl", primFairyLights},
@@ -625,6 +648,7 @@ static PrimEntry entries[] = {
     {"np", primNeoPixel},
     {"nps", primNeoPixelStrip},
     {"ds", primDistanceSensor},
+    {"ps", primPortState},
 };
 
 void addHatchlingPrims() {

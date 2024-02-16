@@ -38,7 +38,7 @@
 // update (forward) references of objects that move during compaction and object resizing.
 
 #if defined(NRF51)
-  #define OBJSTORE_BYTES 2400 // max is 2480
+  #define OBJSTORE_BYTES 2000 // max is 2480
 #elif defined(ARDUINO_BBC_MICROBIT_V2)
   #define OBJSTORE_BYTES 2400 // May want to decrease for bluetooth buffer
 #endif
@@ -441,16 +441,25 @@ void compact() {
 
 void gc() {
 	// Perform a garbage collection to reclaim unused objects and compact memory.
+	// Call captureIncomingBytes() to avoid serial buffer overruns during garbage collection.
+
+	captureIncomingBytes();
+	updateMicrobitDisplay();
 
 	uint32 usecs = microsecs();
+
 	// assume: forwarding pointers cleared at end of compaction so no need to clear them here
 	markRoots();
 	sweep();
 	applyForwarding();
 	compact();
+
 	usecs = microsecs() - usecs;
 
 	char s[100];
 	sprintf(s, "GC took %d usecs; free %d words", usecs, WORDS(freeChunk) - 2);
 	outputString(s);
+
+	captureIncomingBytes();
+	updateMicrobitDisplay();
 }

@@ -105,6 +105,7 @@ static OBJ primI2cRead(int argCount, OBJ *args) {
 	if (!wireStarted) startWire();
 	if (!wireStarted) return zeroObj;
 
+	taskSleep(-1); // do background tasks sooner
 	#if defined(NRF51)
 		noInterrupts();
 		Wire.requestFrom(deviceID, count);
@@ -114,8 +115,7 @@ static OBJ primI2cRead(int argCount, OBJ *args) {
 	#endif
 
 	for (int i = 0; i < count; i++) {
-		if (!Wire.available()) return int2obj(i); /* no more data */;
-		int byte = Wire.read();
+		int byte = Wire.available() ? Wire.read() : 255; // 255 if no data available
 		FIELD(obj, i + 1) = int2obj(byte);
 	}
 	return int2obj(count);
@@ -129,13 +129,12 @@ static OBJ primI2cWrite(int argCount, OBJ *args) {
 	if ((argCount < 2) || !isInt(args[0])) return int2obj(0);
 	int deviceID = obj2int(args[0]);
 	OBJ data = args[1];
+	int stop = ((argCount < 3) || (trueObj == args[2]));
 
 	if (!wireStarted) startWire();
-	if (!wireStarted) {
-		fail(i2cTransferFailed);
-		return falseObj;
-	}
+	if (!wireStarted) return falseObj;
 
+	taskSleep(-1); // do background tasks sooner
 	Wire.beginTransmission(deviceID);
 	if (isInt(data)) {
 		int byteValue = obj2int(data);
@@ -166,8 +165,9 @@ static OBJ primI2cWrite(int argCount, OBJ *args) {
 			Wire.write(*src++);
 		}
 	}
-	int error = Wire.endTransmission();
-	if (error) fail(i2cTransferFailed);
+	int error = Wire.endTransmission(stop);
+	if (error) reportNum("i2c write error", error);
+
 	return falseObj;
 }
 
@@ -186,13 +186,14 @@ static OBJ primI2cSetClockSpeed(int argCount, OBJ *args) {
 
 static int spiSpeed = 1000000;
 static int spiMode = SPI_MODE0;
+static BitOrder spiBitOrder = MSBFIRST;
 
 static void initSPI() {
 	setPinMode(PIN_SPI_MISO, INPUT);
 	setPinMode(PIN_SPI_SCK, OUTPUT);
 	setPinMode(PIN_SPI_MOSI, OUTPUT);
 	SPI.begin();
-	SPI.beginTransaction(SPISettings(spiSpeed, MSBFIRST, spiMode));
+	SPI.beginTransaction(SPISettings(spiSpeed, spiBitOrder, spiMode));
 }
 
 OBJ primSPISend(OBJ *args) {
@@ -227,6 +228,10 @@ OBJ primSPISetup(int argCount, OBJ *args) {
 		case 2: spiMode = SPI_MODE2; break;
 		case 3: spiMode = SPI_MODE3; break;
 		default: spiMode = SPI_MODE0;
+	}
+	spiBitOrder = MSBFIRST;
+	if ((argCount > 3) && IS_TYPE(args[3], StringType) && strcmp(obj2str(args[3]), "LSB")) {
+		spiBitOrder = LSBFIRST;
 	}
 	return falseObj;
 }
@@ -271,6 +276,7 @@ static void startAccelerometer() {
 	} else if (0x33 == readI2CReg(LSM303_ID, 0x0F)) {
 		accelType = accel_LSM303;
 		writeI2CReg(LSM303_ID, 0x20, 0x8F); // 1620 Hz sample rate, low power, all axes
+		writeI2CReg(LSM303_ID, 0x23, 0); // clear BDU bit in case it was set by Makecode
 	} else if (0xC7 == readI2CReg(FXOS8700_ID, 0x0D)) {
 		accelType = accel_FXOS8700;
 		writeI2CReg(FXOS8700_ID, 0x2A, 0); // turn off chip before configuring
@@ -341,7 +347,7 @@ static int readTemperature() {
 	return (*tempReg / 4) - 6; // callibrated at 26 degrees C using average of 3 micro:bits
 }
 
-#elif defined(ARDUINO_BBC_MICROBIT_V2)
+#elif defined(ARDUINO_BBC_MICROBIT_V2) || defined(CALLIOPE_V3)
 
 static int internalWireStarted = false;
 
@@ -353,10 +359,9 @@ static void startInternalWire() {
 
 static int readInternalI2CReg(int deviceID, int reg) {
 	if (!internalWireStarted) startInternalWire();
-
 	Wire1.beginTransmission(deviceID);
 	Wire1.write(reg);
-	int error = Wire1.endTransmission();
+	int error = Wire1.endTransmission((bool) false);
 	if (error) return -error; // error; bad device ID?
 
 	Wire1.requestFrom(deviceID, 1);
@@ -392,6 +397,7 @@ static void startAccelerometer() {
 	} else if (0x33 == readInternalI2CReg(LSM303_ID, 0x0F)) {
 		accelType = accel_LSM303;
 		writeInternalI2CReg(LSM303_ID, 0x20, 0x8F); // 1620 Hz sample rate, low power, all axes
+		writeInternalI2CReg(LSM303_ID, 0x23, 0); // clear BDU bit in case it was set by Makecode
 	} else if (0xC7 == readInternalI2CReg(FXOS8700_ID, 0x0D)) {
 		accelType = accel_FXOS8700;
 		writeInternalI2CReg(FXOS8700_ID, 0x2A, 0); // turn off chip before configuring
@@ -426,6 +432,11 @@ static int readAcceleration(int registerID) {
 	val = (val >= 128) ? (val - 256) : val; // value is a signed byte
 	if (val < -127) val = -127; // keep in range -127 to 127
 	val = sign * ((val * 200) / 127); // scale to range 0-200 and multiply by sign
+
+	#if defined(CALLIOPE_V3)
+		// flip y and z on Calliope V3
+		if ((3 == registerID) || (5 == registerID)) val = -val;
+	#endif
 	return val;
 }
 
@@ -522,7 +533,10 @@ static void i2cReadBytes(int deviceID, int reg, int *buf, int bufSize) {
 	Wire.beginTransmission(deviceID);
 	Wire.write(reg);
 	int error = Wire.endTransmission((bool) false);
-	if (error) return;
+	if (error) {
+		reportNum("i2c read error", error);
+		return;
+	}
 
 	#if defined(NRF51)
 		noInterrupts();
@@ -544,7 +558,8 @@ OBJ primAcceleration(int argCount, OBJ *args) {
 
 	if (!accelStarted) readAcceleration(1); // initialize the accelerometer
 
-	#if defined(ARDUINO_BBC_MICROBIT) || defined(ARDUINO_SINOBIT) || defined(ARDUINO_BBC_MICROBIT_V2)
+	#if defined(ARDUINO_BBC_MICROBIT) || defined(ARDUINO_SINOBIT) || \
+		defined(ARDUINO_BBC_MICROBIT_V2) || defined(CALLIOPE_V3)
 		if (accel_unknown == accelType) startAccelerometer();
 		switch (accelType) {
 		case accel_MMA8653:
@@ -610,7 +625,7 @@ OBJ primSetAccelerometerRange(int argCount, OBJ *args) {
 		rangeSetting = 3;
 	}
 	setAccelRange(rangeSetting);
-	delay(2);
+	taskSleep(2);
 	return falseObj;
 }
 
@@ -678,12 +693,11 @@ void readMagMicrobitV1CalliopeClue(uint8 *sixByteBuffer) {
 
 	Wire.requestFrom(magnetometerAddr, 6);
 	for (int i = 0; i < 6; i++) {
-		if (!Wire.available()) return; /* no more data */;
-		sixByteBuffer[i] = Wire.read();
+		sixByteBuffer[i] = Wire.available() ? Wire.read() : 0;
 	}
 }
 
-#if defined(ARDUINO_BBC_MICROBIT_V2)
+#if defined(ARDUINO_BBC_MICROBIT_V2) || defined(CALLIOPE_V3)
 
 void readMagMicrobitV2(uint8 *sixByteBuffer) {
 	if (!internalWireStarted) startInternalWire();
@@ -704,8 +718,7 @@ void readMagMicrobitV2(uint8 *sixByteBuffer) {
 	Wire1.endTransmission();
 	Wire1.requestFrom(magnetometerAddr, 6);
 	for (int i = 0; i < 6; i++) {
-		if (!Wire1.available()) return; /* no more data */;
-		sixByteBuffer[i] = Wire1.read();
+		sixByteBuffer[i] = Wire1.available() ? Wire1.read() : 0;
 	}
 }
 
@@ -719,7 +732,7 @@ OBJ primMagneticField(int argCount, OBJ *args) {
 	#if defined(ARDUINO_BBC_MICROBIT) || defined(ARDUINO_CALLIOPE_MINI)
 		readMagMicrobitV1CalliopeClue(buf);
 		processMessage(); // process messages now
-	#elif defined(ARDUINO_BBC_MICROBIT_V2)
+	#elif defined(ARDUINO_BBC_MICROBIT_V2) || defined(CALLIOPE_V3)
 		readMagMicrobitV2(buf);
 		processMessage(); // process messages now
 	#else
@@ -752,7 +765,7 @@ OBJ primMagneticField(int argCount, OBJ *args) {
 
 // Microphone Support
 
-#if defined(ARDUINO_BBC_MICROBIT_V2)
+#if defined(ARDUINO_BBC_MICROBIT_V2) || defined(CALLIOPE_V3)
 
 int readAnalogMicrophone() {
 	const int micPin = SAADC_CH_PSELP_PSELP_AnalogInput3;
@@ -793,8 +806,13 @@ int readAnalogMicrophone() {
 
 	NRF_SAADC->ENABLE = 0;
 
+	#if defined(ARDUINO_BBC_MICROBIT_V2)
+		#define ZERO_OFFSET 556
+	#elif defined(CALLIOPE_V3)
+		#define ZERO_OFFSET 548
+	#endif
 	int result = value;
-	result = (result <= 0) ? 0 : result - 556; // if microphone is on, adjust so silence is zero
+	result = (result <= 0) ? 0 : result - ZERO_OFFSET; // if microphone is on, adjust so silence is zero
 	return result << 1; // double result to give a range similar to other boards
 }
 

@@ -14,58 +14,6 @@
 #include "mem.h"
 #include "interp.h"
 
-// Experimental BLE Support
-
-// Import BLE libraries (BLEPeripheral depends on SPI)
-#include <SPI.h>
-#include <BLEPeripheral.h>
-#include "BLESerial.h"
-#include "nrf_sdm.h"
-#include "Naming.h"
-
-BLESerial bleSerial;
-//char initials_name[10] = {'E', 'R', 'R', '-', '-', '0', '0', '0', '0', '0'}; // Holds our name initials
-
-static void initBLE() {
-// 	nrf_clock_lf_cfg_t clock_lf_cfg = {
-// 		.source = NRF_CLOCK_LF_SRC_XTAL,
-// 		.rc_ctiv = 0,
-// 		.rc_temp_ctiv = 0,
-// 		.xtal_accuracy = NRF_CLOCK_LF_XTAL_ACCURACY_20_PPM
-// 	};
-//  sd_softdevice_enable(&clock_lf_cfg, NULL); // fails!
-//	return; // Turning this off for now
-	sd_softdevice_enable(NULL, NULL);
-	bleSerial.begin();
-
-	// Get the local name (determined using the Mac address in the BLE Peripheral Class)
-	const char *initials_name = bleSerial.getLocalName();
-	// Set the first three initials - we'll flash these when the device is not yet connected
-	setFancyName(initials_name); // Sets the fancy name for the VM loop to flash
-}
-
-extern "C" int recvBytesBLE(uint8 *buf, int spaceAvailable) {
-	// Append incoming data into rcvBuf.
-	//return 0; // For testing
-	int bytesRead = bleSerial.available();
-	if (!bytesRead) return 0;
-	if (bytesRead > spaceAvailable) bytesRead = spaceAvailable;
-// Serial printing is just for testing
-//Serial.print(bytesRead);
-//Serial.println(" bytes received");
-	for (int i = 0; i < bytesRead; i++) {
-		buf[i] = bleSerial.read();
-//Serial.print(buf[i]);
-//Serial.print(" ");
-	}
-//Serial.println();
-	return bytesRead;
-}
-/*
-extern "C" int recvBytesBLE(uint8 *buf, int spaceAvailable) {
-	return 0;
-}*/
-
 static void initPins(void); // forward reference
 static void initRandomSeed(void); // forward reference
 
@@ -75,18 +23,30 @@ static void initRandomSeed(void); // forward reference
 
 #define USE_NRF5x_CLOCK true
 
+// Both NIMBLE and the Nordic Softdevice BLE systems use Timer0.
+// MicroBlocks only supports BLE on the nRF52, we use TIMER1 on nRF52.
+// Use TIMER0 on the nRF51, since that is the only 32-bit timer on the nRF51.
+#if defined(NRF52)
+  #define MB_TIMER NRF_TIMER1
+  #define MB_TIMER_IRQn TIMER1_IRQn
+  #define MB_TIMER_IRQHandler TIMER1_IRQHandler
+#else
+  #define MB_TIMER NRF_TIMER0
+  #define MB_TIMER_IRQn TIMER0_IRQn
+  #define MB_TIMER_IRQHandler TIMER0_IRQHandler
+#endif
+
 static void initClock_NRF5x() {
-	NRF_TIMER0->TASKS_SHUTDOWN = true;
-	NRF_TIMER0->MODE = 0; // timer (not counter) mode
-	NRF_TIMER0->BITMODE = 3; // 32-bit
-	NRF_TIMER0->PRESCALER = 4; // 1 MHz (16 MHz / 2^4)
-	NRF_TIMER0->TASKS_START = true;
+	MB_TIMER->TASKS_SHUTDOWN = true;
+	MB_TIMER->MODE = 0; // timer (not counter) mode
+	MB_TIMER->BITMODE = 3; // 32-bit
+	MB_TIMER->PRESCALER = 4; // 1 MHz (16 MHz / 2^4)
+	MB_TIMER->TASKS_START = true;
 }
 
 uint32 microsecs() {
-	return micros();
-// 	NRF_TIMER0->TASKS_CAPTURE[0] = true;
-// 	return NRF_TIMER0->CC[0];
+	MB_TIMER->TASKS_CAPTURE[0] = true;
+	return MB_TIMER->CC[0];
 }
 
 uint32 millisecs() {
@@ -111,12 +71,12 @@ void hardwareInit() {
 	#ifdef USE_NRF5x_CLOCK
 		initClock_NRF5x();
 	#endif
-	#if defined(ARDUINO_BBC_MICROBIT_V2)
+	#if defined(ARDUINO_BBC_MICROBIT_V2) || defined(CALLIOPE_V3)
 		// Use synthesized LF clock to free up pin the speaker pin (P0.00)
 		NRF_CLOCK->LFCLKSRC = CLOCK_LFCLKSRC_SRC_Synth;
 		NRF_CLOCK->TASKS_LFCLKSTART = 1;
 
-		// On micro:bit v2, disable NFC by writing NRF_UICR->NFCPINS to free up pin 8 (P0.10)
+		// Disable NFC by writing NRF_UICR->NFCPINS to free up pin 8 (P0.10)
 		// (this change does not take effect until the next hard reset)
 		if (NRF_UICR->NFCPINS & 1) {
 			NRF_NVMC->CONFIG = NVMC_CONFIG_WEN_Wen; // enable Flash write
@@ -127,40 +87,6 @@ void hardwareInit() {
 	#endif
 	initPins();
 	initRandomSeed();
-	initBLE();
-}
-
-// Communication Functions
-
-int recvBytes(uint8 *buf, int count) {
-	int bytesRead = Serial.available();
-	if (bytesRead > count) bytesRead = count; // there is only enough room for count bytes
-	for (int i = 0; i < bytesRead; i++) {
-		buf[i] = Serial.read();
-	}
-	return bytesRead;
-}
-
-int sendByte(char aByte) {
-	int serialResponse = Serial.write(aByte);
-	int bleResponse = bleSerial.write(aByte); // Adding BLE function
-	return (serialResponse); // || bleResponse); // Could be and if we prefer to require both of them successfully sending
-}
-
-void sendBLEPacket() {
-	// Sends an outgoing packet even if we haven't reached 20 
-	bleSerial.flush();
-}
-
-void restartSerial() {
-	Serial.end();
-	Serial.begin(115200);
-}
-
-// Hatchling addition - returns connection status of BLE
-int isBLEConnected()
-{
-	return bleSerial.connected();
 }
 
 // General Purpose I/O Pins
@@ -252,7 +178,7 @@ void turnOffPins() {
 	}
 }
 
-#if defined(ARDUINO_BBC_MICROBIT_V2)
+#if defined(ARDUINO_BBC_MICROBIT_V2) || defined(CALLIOPE_V3)
 
 static void setHighDrive(int pin) {
 	if ((pin < 0) || (pin >= PINS_COUNT)) return;
@@ -273,14 +199,19 @@ OBJ primAnalogRead(int argCount, OBJ *args) {
 	if (!isInt(args[0])) { fail(needsIntegerError); return int2obj(0); }
 	int pinNum = obj2int(args[0]);
 
-	#if defined(ARDUINO_BBC_MICROBIT) || defined(ARDUINO_BBC_MICROBIT_V2)
+	#if defined(ARDUINO_BBC_MICROBIT)
 		if (10 == pinNum) pinNum = 5; // map pin 10 to A5
-	#endif
-	#if defined(ARDUINO_BBC_MICROBIT_V2)
-		if (6 == pinNum) return int2obj(readAnalogMicrophone());
-	#endif
-	#if defined(ARDUINO_CALLIOPE_MINI)
+	#elif defined(ARDUINO_BBC_MICROBIT_V2)
+		if (6 == pinNum) return int2obj(readAnalogMicrophone()); // A6
+		if (10 == pinNum) pinNum = 5; // map pin 10 to A5
+		if (29 == pinNum) return int2obj(readAnalogMicrophone());
+	#elif defined(ARDUINO_CALLIOPE_MINI)
 		if (0 == pinNum) return int2obj(readAnalogMicrophone());
+	#elif defined(CALLIOPE_V3)
+		if (10 == pinNum) pinNum = 5; // map pin 10 to A5
+		if (16 == pinNum) pinNum = 6; // map pin 16 to A6
+		if (18 == pinNum) pinNum = 3; // map pin 18 to A3
+		if (29 == pinNum) return int2obj(readAnalogMicrophone());
 	#endif
 
 	if ((pinNum < 0) || (pinNum >= ANALOG_PINS)) return int2obj(0);
@@ -330,7 +261,6 @@ OBJ primDigitalRead(int argCount, OBJ *args) {
 	if (!isInt(args[0])) { fail(needsIntegerError); return int2obj(0); }
 	int pinNum = obj2int(args[0]);
 	if ((pinNum < 0) || (pinNum >= TOTAL_PINS)) return falseObj;
-
 	int mode = INPUT;
 	if ((argCount > 1) && (trueObj == args[1])) mode = INPUT_PULLUP;
 	SET_MODE(pinNum, mode);
@@ -369,7 +299,7 @@ void primDigitalSet(int pinNum, int flag) {
 // User LED
 
 void primSetUserLED(OBJ *args) {
-	#if defined(ARDUINO_BBC_MICROBIT) || defined(ARDUINO_BBC_MICROBIT_V2) || defined(ARDUINO_CALLIOPE_MINI)
+	#if defined(HAS_LED_MATRIX)
 		// Special case: Plot or unplot one LED in the LED matrix.
 		OBJ coords[2] = { int2obj(3), int2obj(1) };
 		if (trueObj == args[0]) {
@@ -467,13 +397,13 @@ void stopPWM() {
 
 // NRF5 Servo State
 
-#define MAX_SERVOS 4
+#define MAX_SERVOS 8
 #define UNUSED 255
 
 static int servoIndex = 0;
 static char servoPinHigh = false;
-static char servoPin[MAX_SERVOS] = {UNUSED, UNUSED, UNUSED, UNUSED};
-static unsigned short servoPulseWidth[MAX_SERVOS] = {1500, 1500, 1500, 1500};
+static char servoPin[MAX_SERVOS] = {UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED};
+static unsigned short servoPulseWidth[MAX_SERVOS] = {1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500};
 
 // NRF5 Tone State
 
@@ -484,36 +414,36 @@ static char servoToneTimerStarted = 0;
 
 static void startServoToneTimer() {
 	// enable timer interrupts
-	NVIC_EnableIRQ(TIMER0_IRQn);
+	NVIC_EnableIRQ(MB_TIMER_IRQn);
 
 	// get current timer value
- 	NRF_TIMER0->TASKS_CAPTURE[0] = true;
- 	uint32_t wakeTime = NRF_TIMER0->CC[0];
+ 	MB_TIMER->TASKS_CAPTURE[0] = true;
+ 	uint32_t wakeTime = MB_TIMER->CC[0];
 
 	// set initial wake times a few (at least 2) usecs in the future to kick things off
-	NRF_TIMER0->CC[2] = wakeTime + 5;
-	NRF_TIMER0->CC[3] = wakeTime + 5;
+	MB_TIMER->CC[2] = wakeTime + 5;
+	MB_TIMER->CC[3] = wakeTime + 5;
 
 	// enable interrrupts on CC[2] and CC[3]
-	NRF_TIMER0->INTENSET = TIMER_INTENSET_COMPARE2_Msk | TIMER_INTENSET_COMPARE3_Msk;
+	MB_TIMER->INTENSET = TIMER_INTENSET_COMPARE2_Msk | TIMER_INTENSET_COMPARE3_Msk;
 
 	servoToneTimerStarted = true;
 }
 
-extern "C" void TIMER0_IRQHandler() {
-	if (NRF_TIMER0->EVENTS_COMPARE[2]) { // tone waveform generator (CC[2])
-		uint32_t wakeTime = NRF_TIMER0->CC[2];
-		NRF_TIMER0->EVENTS_COMPARE[2] = 0; // clear interrupt
+extern "C" void MB_TIMER_IRQHandler() {
+	if (MB_TIMER->EVENTS_COMPARE[2]) { // tone waveform generator (CC[2])
+		uint32_t wakeTime = MB_TIMER->CC[2];
+		MB_TIMER->EVENTS_COMPARE[2] = 0; // clear interrupt
 		if (tonePin >= 0) {
 			tonePinState = !tonePinState;
 			digitalWrite(tonePin, tonePinState);
-			NRF_TIMER0->CC[2] = (wakeTime + toneHalfPeriod); // next wake time
+			MB_TIMER->CC[2] = (wakeTime + toneHalfPeriod); // next wake time
 		}
 	}
 
-	if (NRF_TIMER0->EVENTS_COMPARE[3]) { // servo waveform generator (CC[3])
-		uint32_t wakeTime = NRF_TIMER0->CC[3] + 12;
-		NRF_TIMER0->EVENTS_COMPARE[3] = 0; // clear interrupt
+	if (MB_TIMER->EVENTS_COMPARE[3]) { // servo waveform generator (CC[3])
+		uint32_t wakeTime = MB_TIMER->CC[3] + 12;
+		MB_TIMER->EVENTS_COMPARE[3] = 0; // clear interrupt
 
 		if (servoPinHigh && (0 <= servoIndex) && (servoIndex < MAX_SERVOS)) {
 			digitalWrite(servoPin[servoIndex], LOW); // end the current servo pulse
@@ -528,11 +458,11 @@ extern "C" void TIMER0_IRQHandler() {
 		if (servoIndex < MAX_SERVOS) { // start servo pulse for servoIndex
 			digitalWrite(servoPin[servoIndex], HIGH);
 			servoPinHigh = true;
-			NRF_TIMER0->CC[3] = (wakeTime + servoPulseWidth[servoIndex]);
+			MB_TIMER->CC[3] = (wakeTime + servoPulseWidth[servoIndex]);
 		} else { // idle until next set of pulses
 			servoIndex = -1;
 			servoPinHigh = false;
-			NRF_TIMER0->CC[3] = (wakeTime + 18000);
+			MB_TIMER->CC[3] = (wakeTime + 18000);
 		}
 	}
 }
@@ -560,120 +490,6 @@ static void setServo(int pin, int usecs) {
 
 	if (usecs <= 0) { // turn off servo
 		nrfDetachServo(pin);
-		return;
-	}
-
-	for (int i = 0; i < MAX_SERVOS; i++) {
-		if (pin == servoPin[i]) { // update the pulse width for the given pin
-			servoPulseWidth[i] = usecs;
-			return;
-		}
-	}
-
-	for (int i = 0; i < MAX_SERVOS; i++) {
-		if (UNUSED == servoPin[i]) { // found unused servo entry
-			servoPin[i] = pin;
-			servoPulseWidth[i] = usecs;
-			return;
-		}
-	}
-}
-
-#elif defined(ESP32)
-
-static int attachServo(int pin) {
-	// Note: Do not use channels 0-1 or 8-9; those use timer0, which is used by Tone.
-	for (int i = 1; i < MAX_ESP32_CHANNELS; i++) {
-		if ((0 == esp32Channels[i]) && ((i & 7) > 1)) { // free channel
-			ledcSetup(i, 50, 10); // 50Hz, 10 bits
-			ledcAttachPin(pin, i);
-			esp32Channels[i] = pin;
-			return i;
-		}
-	}
-	return 0;
-}
-
-static void setServo(int pin, int usecs) {
-	if (usecs <= 0) {
-		pinDetach(pin);
-	} else {
-		int esp32Channel = pinAttached(pin);
-		if (!esp32Channel) esp32Channel = attachServo(pin);
-		if (esp32Channel > 0) {
-			ledcWrite(esp32Channel, usecs * 1024 / 20000);
-		}
-	}
-}
-
-void stopServos() {
-	for (int i = 1; i < MAX_ESP32_CHANNELS; i++) {
-		int pin = esp32Channels[i];
-		if (pin) pinDetach(pin);
-	}
-}
-
-#elif ARDUINO_ARCH_MBED
-
-#include <mbed.h>
-
-#define MAX_SERVOS 8
-#define UNUSED 255
-
-static char servoPin[MAX_SERVOS] = {UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED};
-static unsigned short servoPulseWidth[MAX_SERVOS] = {1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500};
-
-mbed::Timeout servoTimeout; // calls servoTick when timeout expires
-static int servoIndex = 0;
-static char servoPinHigh = false;
-static char servoToneTimerStarted = 0;
-
-static void servoTick() {
-	if (servoPinHigh && (0 <= servoIndex) && (servoIndex < MAX_SERVOS)) {
-		digitalWrite(servoPin[servoIndex], LOW); // end the current servo pulse
-	}
-
-	// find the next active servo
-	servoIndex = (servoIndex + 1) % MAX_SERVOS;
-	while ((servoIndex < MAX_SERVOS) && (UNUSED == servoPin[servoIndex])) {
-		servoIndex++;
-	}
-
-	if (servoIndex < MAX_SERVOS) { // start servo pulse for servoIndex
-		digitalWrite(servoPin[servoIndex], HIGH);
-		servoPinHigh = true;
-		servoTimeout.attach(&servoTick, (std::chrono::microseconds) servoPulseWidth[servoIndex]);
-	} else { // idle until next set of pulses
-		servoIndex = -1;
-		servoPinHigh = false;
-		servoTimeout.attach(&servoTick, (std::chrono::microseconds) 18000);
-	}
-}
-
-void stopServos() {
-	for (int i = 0; i < MAX_SERVOS; i++) {
-		servoPin[i] = UNUSED;
-		servoPulseWidth[i] = 1500;
-	}
-	servoPinHigh = false;
-	servoIndex = 0;
-}
-
-static void setServo(int pin, int usecs) {
-	if (!servoToneTimerStarted) {
-		// start servoTick callbacks
-		servoIndex = -1;
-		servoTimeout.attach(&servoTick, (std::chrono::microseconds) 100);
-		servoToneTimerStarted = true;
-	}
-
-	if (usecs <= 0) { // turn off servo
-		for (int i = 0; i < MAX_SERVOS; i++) {
-			if (pin == servoPin[i]) {
-				servoPulseWidth[i] = 1500;
-				servoPin[i] = UNUSED;
-			}
-		}
 		return;
 	}
 
@@ -728,49 +544,11 @@ static void setTone(int pin, int frequency) {
 	if (!servoToneTimerStarted) {
 		startServoToneTimer();
 	}
-	NRF_TIMER0->TASKS_CAPTURE[2] = true;
-	NRF_TIMER0->CC[2] = (NRF_TIMER0->CC[2] + toneHalfPeriod); // set next wakeup time
+	MB_TIMER->TASKS_CAPTURE[2] = true;
+	MB_TIMER->CC[2] = (MB_TIMER->CC[2] + toneHalfPeriod); // set next wakeup time
 }
 
 void stopTone() { tonePin = -1; }
-
-#elif defined(ESP32)
-
-int tonePin = -1;
-
-static void initESP32Tone(int pin) {
-	if ((pin == tonePin) || (pin < 0)) return;
-	if (tonePin < 0) {
-		int f = ledcSetup(0, 15000, 12); // do setup on first call
-	} else {
-		ledcWrite(0, 0); // stop current tone, if any
-		ledcDetachPin(tonePin);
-	}
-	tonePin = pin;
-}
-
-static void setTone(int pin, int frequency) {
-	if (pin != tonePin) stopTone();
-	initESP32Tone(pin);
-	if (tonePin >= 0) {
-		ledcAttachPin(tonePin, 0);
-		ledcWriteTone(0, frequency);
-	}
-}
-
-void stopTone() {
-	if (tonePin >= 0) {
-		ledcWrite(0, 0);
-		ledcDetachPin(tonePin);
-	}
-}
-
-#elif defined(ARDUINO_SAM_DUE)
-
-// the Due does not have Tone functions
-
-static void setTone(int pin, int frequency) { }
-void stopTone() { }
 
 #else // use Arduino Tone functions
 
@@ -829,38 +607,6 @@ OBJ primPlayTone(int argCount, OBJ *args) {
 	return trueObj;
 }
 
-
-OBJ primPlayToneWithDelay(int argCount, OBJ *args) {
-	// playTone <freq> <delay>
-	// If freq > 0 and delay > 0, generate a 50% duty cycle square wave of the given frequency
-	// on the given pin. If freq <= 0 stop generating the square wave.
-	// Return true on success, false if primitive is not supported.
-	// Function added by Tom to support simpler sound commands from Hatchling
-
-	OBJ freqArg = args[0];
-	OBJ delayArg = args[1];
-	if (!isInt(delayArg) || !isInt(freqArg)) return falseObj;
-
-    // The buzzer is our default
-	int pin = DEFAULT_TONE_PIN;
-
-	SET_MODE(pin, OUTPUT);
-	int frequency = obj2int(freqArg);
-	int delayMilli = obj2int(delayArg);
-    // No single tones should play for less than 5 ms or more than 5 seconds
-	if ((frequency < 16) || (frequency > 100000) || (delayMilli < 5) || (delayMilli > 5000)) {
-		stopTone();
-		digitalWrite(pin, LOW);
-	} else {
-		setTone(pin, frequency);
-	}
-   // delay(delayMilli);
-	//stopTone();
-	//digitalWrite(pin, LOW);
-
-	return trueObj;
-}
-
 OBJ primHasServo(int argCount, OBJ *args) { return trueObj; }
 
 OBJ primSetServo(int argCount, OBJ *args) {
@@ -883,7 +629,11 @@ OBJ primSetServo(int argCount, OBJ *args) {
 
 // Software serial (output only)
 
-static OBJ primSoftwareSerialWriteByte(int argCount, OBJ *args) {
+#if !defined(__not_in_flash_func)
+  #define __not_in_flash_func(funcName) funcName
+#endif
+
+static OBJ __not_in_flash_func(primSoftwareSerialWriteByte)(int argCount, OBJ *args) {
 	// Write a byte to the given pin at the given baudrate using software serial.
 
 	if (argCount < 3) return fail(notEnoughArguments);
@@ -891,6 +641,15 @@ static OBJ primSoftwareSerialWriteByte(int argCount, OBJ *args) {
 	int pinNum = evalInt(args[1]);
 	int baud = evalInt(args[2]);
 	int bitTime = 1000000 / baud;
+
+	// adjust the bitTime for slower cpu's
+	#if defined(ARDUINO_ARCH_SAMD)
+		bitTime -= 3;
+	#elif defined(NRF51) || defined(ESP8266) || defined(ARDUINO_SAM_DUE) || defined(RP2040_PHILHOWER)
+		bitTime -= 2;
+	#else
+		bitTime -= 1;
+	#endif
 
 	if ((pinNum < 0) || (pinNum >= TOTAL_PINS)) return falseObj;
 	SET_MODE(pinNum, OUTPUT);
@@ -933,7 +692,6 @@ static OBJ primDigitalWrite2(int argCount, OBJ *args) { primDigitalWrite(args); 
 static PrimEntry entries[] = {
 	{"hasTone", primHasTone},
 	{"playTone", primPlayTone},
-	{"ptd", primPlayToneWithDelay}, // Added for Hatchling sound support
 	{"hasServo", primHasServo},
 	{"setServo", primSetServo},
 	{"softWriteByte", primSoftwareSerialWriteByte},

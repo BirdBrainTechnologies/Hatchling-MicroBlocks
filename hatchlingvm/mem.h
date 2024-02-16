@@ -19,6 +19,10 @@ extern "C" {
   #define NRF52 1
 #endif
 
+#if defined(BLE_IDE)
+  #define USE_NIMBLE 1
+#endif
+
 // Unsigned integer types
 
 typedef unsigned char uint8;

@@ -100,6 +100,7 @@ extern Task tasks[MAX_TASKS];
 extern int taskCount;
 
 // Extra delay used to limit serial transmission speed
+
 extern int extraByteDelay;
 
 // Serial Protocol Messages: IDE -> Board
@@ -138,6 +139,7 @@ extern int extraByteDelay;
 #define chunkAttributeMsg		28
 #define varNameMsg				29
 #define extendedMsg				30
+#define enableBLEMsg			31
 
 // Serial Protocol Messages: CRC Exchange
 
@@ -184,6 +186,16 @@ extern int extraByteDelay;
 #define byteOutOfRange			40	// Needs a value between 0 and 255
 #define needsPositiveIncrement	41	// Range increment must be a positive integer
 #define needsIntOrListOfInts	42	// Needs an integer or a list of integers
+#define wifiNotConnected		43	// Not connected to a WiFi network
+#define cannotConvertToInteger	44	// Cannot convert that to an integer
+#define cannotConvertToBoolean	45	// Cannot convert that to a boolean
+#define cannotConvertToList		46	// Cannot convert that to a list
+#define cannotConvertToByteArray 47	// Cannot convert that to a byte array
+#define unknownDatatype			48	// Unknown datatype
+#define invalidUnicodeValue		49	// Unicode values must be between 0 and 1114111 (0x10FFFF)
+#define cannotUseRadioWithBLE	50	// Cannot use radio blocks or WiFi when board connected to IDE via Bluetooth
+#define bad8BitBitmap			51	// Needs an 8-bit bitmap: a list containing the bitmap width and contents (a byte array)
+#define badColorPalette			52	// Needs a color palette: a list of positive 24-bit integers representing RGB values
 #define sleepSignal				255	// Not a real error; used to make current task sleep
 
 // Runtime Operations
@@ -247,11 +259,10 @@ void outputRecordHeaders();
 uint32 microsecs(void);
 uint32 millisecs(void);
 
-int serialConnected();
-int recvBytesBLE(uint8 *buf, int spaceAvailable);
+int ideConnected();
 int recvBytes(uint8 *buf, int count);
-int sendByte(char aByte);
-void sendBLEPacket();
+int sendBytes(uint8 *buf, int start, int end);
+void captureIncomingBytes();
 void restartSerial();
 
 const char *boardType();
@@ -259,9 +270,7 @@ void hardwareInit(void);
 
 int readI2CReg(int deviceID, int reg);
 void writeI2CReg(int deviceID, int reg, int value);
-
 void setFancyName(const char *nameFromMac);
-
 // I/O Support
 
 int pinCount();
@@ -277,9 +286,9 @@ int readAnalogMicrophone();
 void showMicroBitPixels(int microBitDisplayBits, int xPos, int yPos);
 void readHatchlingSensors();
 void getHatchlingData(uint8 *hlData);
-int isBLEConnected(); // For checking BLE - Hatchling addition
-void setMBDisplay(int displayBits); // For controlling MB display - Hatchling addition
-void printCharDisplay(int charToPrint); // Additional function to control display
+//int isBLEConnected(); // For checking BLE - Hatchling addition
+//void setMBDisplay(int displayBits); // For controlling MB display - Hatchling addition
+//void printCharDisplay(int charToPrint); // Additional function to control display
 void showLEDCode(); // Sets the neopixels to a color code based on Mac Address
 void stopHatchling(); // Turns off attached servos/LEDs
 
@@ -329,6 +338,23 @@ OBJ primMBTemp(int argCount, OBJ *args);
 OBJ primNeoPixelSend(int argCount, OBJ *args);
 OBJ primNeoPixelSetPin(int argCount, OBJ *args);
 
+// BLE Support
+
+extern int BLE_connected_to_IDE;
+extern char BLE_ThreeLetterID[4];
+
+void BLE_initThreeLetterID();
+void BLE_start();
+void BLE_stop();
+
+void BLE_pauseAdvertising();
+void BLE_resumeAdvertising();
+
+void BLE_setEnabled(int enableFlag);
+int BLE_isEnabled();
+
+void getMACAddress(uint8 *sixBytes);
+
 // Primitive Sets
 
 void addDataPrims();
@@ -337,6 +363,7 @@ void addIOPrims();
 void addMiscPrims();
 void addRadioPrims();
 void addSensorPrims();
+void addBLEPrims();
 void addHatchlingPrims(); // Added by TOM to add function definitions
 
 // Named Primitive Support

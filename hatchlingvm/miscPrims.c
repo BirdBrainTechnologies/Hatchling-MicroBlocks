@@ -53,6 +53,19 @@ static OBJ primSqrt(int argCount, OBJ *args) {
 	return int2obj((int) round(1000 * sqrt(evalInt(args[0]))));
 }
 
+static OBJ primArctan(int argCount, OBJ *args) {
+	// Returns angle (in hundredths of a degree) of vector dx, dy.
+
+	if (argCount < 2) return fail(notEnoughArguments);
+	if (!isInt(args[0]) || !isInt(args[1])) return fail(needsIntegerError);
+
+	double x = obj2int(args[0]);
+	double y = obj2int(args[1]);
+	double degreeHundredths = (18000.0 * atan2(y, x)) / 3.141592653589793238463;
+
+	return int2obj((int) round(degreeHundredths));
+}
+
 static OBJ primPressureToAltitude(int argCount, OBJ *args) {
 	// Computes the altitude difference (in millimeters) for a given pressure difference.
 	//  dH = 44330 * [ 1 - ( p / p0 ) ^ ( 1 / 5.255) ]
@@ -65,7 +78,7 @@ static OBJ primPressureToAltitude(int argCount, OBJ *args) {
 }
 
 static OBJ primConnectedToIDE(int argCount, OBJ *args) {
-	return serialConnected() ? trueObj : falseObj;
+	return ideConnected() ? trueObj : falseObj;
 }
 
 // Primitives
@@ -75,6 +88,7 @@ static PrimEntry entries[] = {
 	{"rescale", primRescale},
 	{"sin", primSine},
 	{"sqrt", primSqrt},
+	{"atan2", primArctan},
 	{"pressureToAltitude", primPressureToAltitude},
 	{"connectedToIDE", primConnectedToIDE},
 	{"broadcastToIDE", primBroadcastToIDEOnly},

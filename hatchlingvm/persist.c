@@ -22,6 +22,8 @@
 //		void flashWriteData(int *dst, int wordCount, uint8 *src)
 //		void flashWriteWord(int *addr, int value)
 
+#include <Arduino.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,8 +34,7 @@
 
 // flash operations for supported platforms
 
-//#if defined(NRF51) || defined(NRF52) || defined(ARDUINO_NRF52_PRIMO)
- #if false // disabled for BLE
+#if defined(NRF51) || defined(NRF52) || defined(ARDUINO_NRF52_PRIMO)
 	#include "nrf.h" // nRF51 and nRF52
 
 	// to check available FLASH, build with -Wl,-Map,output.map and make sure __etext < START
@@ -58,6 +59,10 @@
 			while (NRF_NVMC->READY == NVMC_READY_READY_Busy){}
 			NRF_NVMC->ERASEPAGE = (int) startAddr;
 			startAddr += pageSize;
+			captureIncomingBytes();
+			#if defined(BLE_IDE)
+				delay(30);
+			#endif
 		}
 		NRF_NVMC->CONFIG = 0; // disable Flash erase
 	}
@@ -89,8 +94,8 @@
 
 	#define RAM_CODE_STORE true
 	#define HALF_SPACE (10 * 1024)
-	#define START (&flash[0])
 
+	#define START (&flash[0])
 	static uint8 flash[HALF_SPACE] __attribute__ ((aligned (32))); // simulated Flash memory
 
 	static void flashErase(int *startAddr, int *endAddr) {
@@ -349,11 +354,6 @@ static void updateChunkTable() {
 
 #ifndef RAM_CODE_STORE
 
-struct {
-	int *chunkCodeRec;
-	int *attributeRecs[CHUNK_ATTRIBUTE_COUNT];
-} chunkData;
-
 static char chunkProcessed[256];
 static char varProcessed[256];
 
@@ -363,36 +363,25 @@ static int * copyChunkInfo(int id, int *src, int *dst) {
 
 	if (chunkProcessed[id]) return dst;
 
-	// clear chunkData
-	memset(&chunkData, 0, sizeof(chunkData));
+	int *chunkSrc = 0;
 
 	// scan rest of the records to get the most recent info about this chunk
 	while (src) {
-		int attributeID;
 		if (id == ((*src >> 8) & 0xFF)) { // id field matches
 			int type = (*src >> 16) & 0xFF;
 			switch (type) {
 			case chunkCode:
-				chunkData.chunkCodeRec = src;
-				break;
-			case chunkAttribute:
-				attributeID = *src & 0xFF;
-				if (attributeID < CHUNK_ATTRIBUTE_COUNT) {
-					chunkData.attributeRecs[attributeID] = src;
-				}
+				chunkSrc = src;
 				break;
 			case chunkDeleted:
-				memset(&chunkData, 0, sizeof(chunkData)); // clear chunkData
+				chunkSrc = 0;
 				break;
 			}
 		}
 		src = recordAfter(src);
 	}
-	if (chunkData.chunkCodeRec) {
-		dst = copyChunk(dst, chunkData.chunkCodeRec);
-		for (int i = 0; i < CHUNK_ATTRIBUTE_COUNT; i++) {
-			if (chunkData.attributeRecs[i]) dst = copyChunk(dst, chunkData.attributeRecs[i]);
-		}
+	if (chunkSrc) {
+		dst = copyChunk(dst, chunkSrc);
 	}
 	chunkProcessed[id] = true;
 	return dst;
@@ -437,6 +426,8 @@ static void compactFlash() {
 	//	5. switch to the other half-space
 	//	6. remember the free pointer for the new half-space
 
+	uint32_t startT = millisecs();
+
 	// clear the processed flags
 	memset(chunkProcessed, 0, sizeof(chunkProcessed));
 	memset(varProcessed, 0, sizeof(varProcessed));
@@ -447,6 +438,7 @@ static void compactFlash() {
 
 	int *src = compactionStartRecord(NULL);
 	while (src) {
+		captureIncomingBytes();
 		int header = *src;
 		int type = (header >> 16) & 0xFF;
 		int id = (header >> 8) & 0xFF;
@@ -465,14 +457,15 @@ static void compactFlash() {
 
 	updateChunkTable();
 
-	#if defined(NRF51) || defined(ARDUINO_BBC_MICROBIT_V2)
+	#if defined(NRF51) || defined(ARDUINO_BBC_MICROBIT_V2) || defined(CALLIOPE_V3)
 		// Compaction messes up the serial port on the micro:bit v1 and v2 and Calliope
 		restartSerial();
 	#endif
 
 	char s[100];
 	int bytesUsed = 4 * (freeStart - ((0 == current) ? start0 : start1));
-	sprintf(s, "Compacted Flash code store\n%d bytes used (%d%%) of %d",
+	sprintf(s, "Compacted Flash code store (%lu msecs)\n%d bytes used (%d%%) of %d",
+		millisecs() - startT,
 		bytesUsed, (100 * bytesUsed) / HALF_SPACE, HALF_SPACE);
 	outputString(s);
 }
@@ -490,7 +483,6 @@ static int keepCodeChunk(int id, int header, int *start) {
 
 	int *rec = start;
 	while (rec) {
-		// superceded only if all fields of header match (i.e. type, id, attributeType)
 		if (*rec == header) return false; // superceded
 		rec = recordAfter(rec);
 	}
@@ -519,6 +511,8 @@ static void compactRAM(int printStats) {
 	//	6. update the compaction count
 	//	7. re-write the code file
 
+	uint32_t startT = millisecs();
+
 	int *dst = ((0 == !current) ? start0 : start1) + 1;
 	int *src = compactionStartRecord();
 
@@ -537,7 +531,7 @@ static void compactRAM(int printStats) {
 		int header = *src;
 		int type = (header >> 16) & 0xFF;
 		int id = (header >> 8) & 0xFF;
-		if ((chunkCode <= type) && (type <= chunkAttribute) && keepCodeChunk(id, header, next)) {
+		if ((type == chunkCode) && keepCodeChunk(id, header, next)) {
 			dst = copyChunk(dst, src);
 		} else if ((varName == type) && (src >= varsStart)) {
 			dst = copyChunk(dst, src);
@@ -562,12 +556,20 @@ static void compactRAM(int printStats) {
 	if (printStats) {
 		char s[100];
 		int bytesUsed = 4 * (freeStart - ((0 == current) ? start0 : start1));
-		sprintf(s, "Compacted RAM code store\n%d bytes used (%d%%) of %d",
+
+		sprintf(s, "Compacted RAM code store (%lu msecs)\n%d bytes used (%d%%) of %d",
+			millisecs() - startT,
 			bytesUsed, (100 * bytesUsed) / HALF_SPACE, HALF_SPACE);
 		outputString(s);
 	}
 }
 #endif
+
+#ifdef EMSCRIPTEN
+int *ramStart() { return start0; }
+int ramSize() { return 4 * (freeStart - start0); }
+#endif
+
 
 // entry points
 
@@ -681,4 +683,87 @@ void resumeCodeFileUpdates() {
 		}
 		suspendFileUpdates = false;
 	#endif
+}
+
+// testing
+
+static void dumpWords(int halfSpace, int count) {
+	// Dump the first count words of the given half-space.
+
+	char s[100];
+	int *p = (current == 0) ? start0 : start1;
+	for (int i = 0; i < count; i++) {
+		sprintf(s, "%d %d %d %d",
+			(*p >> 24) & 0xFF,
+			(*p >> 16) & 0xFF,
+			(*p >> 8) & 0xFF,
+			*p & 0xFF);
+		outputString(s);
+		p++;
+	}
+}
+
+static void showRecordHeaders() {
+	// Dump the record headers of the current half-space.
+
+	char s[100];
+	int *p = recordAfter(NULL);
+	while (p) {
+		sprintf(s, "Record at offset %d: %d %d %d %d (%d words)",
+			(p - start0),
+			(*p >> 24) & 0xFF, (*p >> 16) & 0xFF, (*p >> 8) & 0xFF, *p & 0xFF, *(p + 1));
+		outputString(s);
+		p = recordAfter(p);
+	}
+}
+
+void basicTest() {
+	int testData[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+	uint8 charData[] = {
+		0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0, 4, 0, 0, 0,
+		5, 0, 0, 0, 6, 0, 0, 0, 7, 0, 0, 0, 8, 0, 0, 0, 9, 0, 0, 0};
+
+	#define PAGE ((int *) START)
+
+	flashErase(PAGE, PAGE + 100);
+	dumpWords(0, 35);
+	outputString("-----");
+	flashWriteData(PAGE, 10, (uint8 *) testData);
+	flashWriteWord(PAGE + 13, 13);
+	flashWriteWord(PAGE + 15, 42);
+	flashWriteWord(PAGE + 17, 17);
+	flashWriteData(PAGE + 19, 3, charData);
+	flashWriteData(PAGE + 23, 3, &charData[1]);
+	flashWriteData(PAGE + 27, 3, &charData[2]);
+	dumpWords(0, 35);
+	flashErase(PAGE, PAGE + 100);
+	dumpWords(0, 20);
+}
+
+void persistTest() {
+	int dummyData[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+
+	outputString("Persistent Memory Test\n");
+	basicTest();
+
+	outputString("\nInitializing Memory");
+	initPersistentMemory();
+	initPersistentMemory();
+	clearPersistentMemory();
+	outputString("Memory intitialized; writing records...");
+
+	for (int i = 0; i < 3000; i++) {
+		appendPersistentRecord(chunkCode, i % 100, 0, (i % 5) * 4, (uint8 *) dummyData);
+	}
+	compactCodeStore();
+
+	dumpWords(current, 150);
+	showRecordHeaders();
+
+	char s[100];
+	sprintf(s, "Final: current %d used %d c0 %d c1 %d",
+		current,
+		freeStart - ((0 == current) ? start0 : start1),
+		cycleCount(0), cycleCount(1));
+	outputString(s);
 }
