@@ -1323,11 +1323,17 @@ void vmLoop() {
 	uint32 timeToChange = millis();
 	uint32 timeToTransmit = millis();
 	uint32 startTime = millis();
-	int displayTime = 100;
+	int soundTime = 100;
 	int timeOut = 15000; // The Hatchling will stop displaying its initials and color code after 15 seconds (or earlier if BLE gets connected)
 	bool isBLEConnect = false;
 	bool prevBLEConnect = false;
 	bool advertisingTimeOver = false; 
+	OBJ tone_args[2];
+	uint8_t noteState = 255;
+	
+	// No need to change this every time - we always used the internal buzzer, which is pin -1
+	tone_args[0] = int2obj(-1);
+
 	while (true) {
 		if (count-- < 0) {
 			// do background VM tasks once every N VM loop cycles
@@ -1385,6 +1391,100 @@ void vmLoop() {
 			sendBroadcastToIDE(hlData, 8); // Send port states and other HL sensors
 			timeToTransmit = millis();
 			//sendData(); // Sends all of the bytes we just collected in one packet, even though it is not 20 bytes
+		}
+		// In this case, set up the notes to play the connection sound
+		if(isBLEConnected() && isBLEConnect == false)
+		{
+			isBLEConnect=true;
+			soundTime = millis(); 
+			noteState = 0;
+			// Best not to start the tone until connection is settled - maybe 200 ms later
+			//tone_args[1] = int2obj(329);
+			//primPlayTone(2, tone_args);
+		}
+		// In this case, set up the notes to play the disconnection sound
+		else if(!isBLEConnected() && isBLEConnect == true)
+		{
+			isBLEConnect = false;
+			soundTime = millis(); 
+			noteState = 10;
+			// Play the first note of the disconnection sound
+			tone_args[1] = int2obj(587);
+			primPlayTone(2, tone_args);
+		}
+
+		// Play the connection sound
+		if(noteState == 0 && millis()-soundTime > 200)
+		{
+			// Play the next note
+			soundTime = millis();
+			tone_args[1] = int2obj(329);
+			primPlayTone(2, tone_args);
+			noteState++;
+		}
+		else if(noteState == 1 && millis()-soundTime > 100)
+		{
+			// Play the next note
+			soundTime = millis();
+			tone_args[1] = int2obj(523);
+			primPlayTone(2, tone_args);
+			noteState++;
+		}
+		else if(noteState == 2 && millis()-soundTime > 100)
+		{
+			//Play the third note
+			soundTime = millis();
+			tone_args[1] = int2obj(587);
+			primPlayTone(2, tone_args);
+			noteState++;
+		}
+		else if(noteState == 3 && millis()-soundTime > 100)
+		{
+			// Play the next note
+			soundTime = millis();
+			tone_args[1] = int2obj(740);
+			primPlayTone(2, tone_args);
+			noteState++;
+		}
+		else if(noteState == 4 && millis()-soundTime > 100)
+		{
+			//Turn off the buzzer
+			tone_args[1] = int2obj(0);
+			primPlayTone(2, tone_args);
+			noteState=255;
+		}
+
+		// Play the remainder of the disconnection sound
+		if(noteState == 10 && millis()-soundTime > 100)
+		{
+			// Play the next note
+			soundTime = millis();
+			tone_args[1] = int2obj(494);
+			primPlayTone(2, tone_args);
+			noteState++;
+		}
+		else if(noteState == 11 && millis()-soundTime > 100)
+		{
+			//Play the third note
+			soundTime = millis();
+			tone_args[1] = int2obj(392);
+			primPlayTone(2, tone_args);
+			noteState++;
+		}
+		else if(noteState == 12 && millis()-soundTime > 100)
+		{
+			//Play the third note
+			soundTime = millis();
+			tone_args[1] = int2obj(262);
+			primPlayTone(2, tone_args);
+			noteState++;
+		}
+		else if(noteState == 13 && millis()-soundTime > 100)
+		{
+			//Turn off the buzzer
+			tone_args[1] = int2obj(0);
+			primPlayTone(2, tone_args);
+			noteState=255;
 		}
 
 

@@ -39,7 +39,7 @@ static uint16_t connID = -1;
 static uint32 lastSendTime = 0;
 static int lastRC = 0;
 
-#define RECV_BUF_MAX 1024
+#define RECV_BUF_MAX 2048 // Hatchling change from 1024
 static uint8_t bleRecvBuf[RECV_BUF_MAX];
 static int bleBytesAvailable = 0;
 static int overRuns = 0;
@@ -312,6 +312,13 @@ int sendBytes(uint8 *buf, int start, int end) {
 
 	// use BLE connection
 	return bleSendData(&buf[start], end - start);
+}
+
+// Hatchling add - way for VM loop to know if BLE is connected
+// True if connected, false otherwise
+int isBLEConnected()
+{
+	return BLE_connected_to_IDE;
 }
 
 #define BLE_DISABLED_FILE "/_BLE_DISABLED_"

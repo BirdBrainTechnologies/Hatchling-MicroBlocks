@@ -338,6 +338,7 @@ OBJ primMBTemp(int argCount, OBJ *args);
 OBJ primNeoPixelSend(int argCount, OBJ *args);
 OBJ primNeoPixelSetPin(int argCount, OBJ *args);
 
+OBJ primPlayTone(int argCount, OBJ *args);
 // BLE Support
 
 extern int BLE_connected_to_IDE;
@@ -352,7 +353,7 @@ void BLE_resumeAdvertising();
 
 void BLE_setEnabled(int enableFlag);
 int BLE_isEnabled();
-
+int isBLEConnected(); // Hatchling addition
 void getMACAddress(uint8 *sixBytes);
 
 // Primitive Sets

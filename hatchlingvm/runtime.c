@@ -477,7 +477,7 @@ void softReset(int clearMemoryFlag) {
 // Sending Messages to IDE
 
 // Circular output buffer
-#define OUTBUF_SIZE 1024 // must be a power of 2!
+#define OUTBUF_SIZE 2048 // Hatchling change from 1024; must be a power of 2!
 #define OUTBUF_MASK (OUTBUF_SIZE - 1)
 static uint8 outBuf[OUTBUF_SIZE];
 static int outBufStart = 0;
@@ -952,7 +952,7 @@ int indexOfVarNamed(const char *s) {
 
 // Receiving Messages from IDE
 
-#define RCVBUF_SIZE 1024
+#define RCVBUF_SIZE 2048 // Hatchling change from 1024
 #define MAX_MSG_SIZE (RCVBUF_SIZE - 10) // 5 header + 1 terminator bytes plus a few extra
 static uint8 rcvBuf[RCVBUF_SIZE];
 static int rcvByteCount = 0;
