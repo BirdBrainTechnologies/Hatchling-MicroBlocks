@@ -55,7 +55,7 @@ static int spiMode = SPI_MODE0;
 #define HL_BATT_THRESH1                              211							//Three yellow leds below this
 #define HL_BATT_THRESH2                              194	
 
-#define SPI_DELAY                                    500                           // Determines how long to wait after an SPI command for the Hatchling to execute on the command. 
+#define SPI_DELAY                                    250                           // Determines how long to wait after an SPI command for the Hatchling to execute on the command. 
                                                                                    // Potential improvement - only do this if two SPI commands are sent immediately one after the other 
 
 // Port ID values - basically, what raw analog sensor reading corresponds to what specific component?
@@ -141,7 +141,7 @@ void setPortsViaSPI()
     SPI.endTransaction();
     
     digitalWrite(16, HIGH);    
-    delayMicroseconds(500); //Give Hatchling time to execute an SPI command 
+    delayMicroseconds(SPI_DELAY); //Give Hatchling time to execute an SPI command 
 }
 
 // Primitives
@@ -361,7 +361,7 @@ OBJ primNeoPixelStrip(int argCount, OBJ *args) {
         SPI.endTransaction();
             
         digitalWrite(16, HIGH);
-        delayMicroseconds(500); //Give Hatchling time to execute an SPI command 
+        delayMicroseconds(SPI_DELAY); //Give Hatchling time to execute an SPI command 
 	    return trueObj;
     }
     return falseObj;
@@ -555,7 +555,7 @@ void readHatchlingSensors() {
             SPI.endTransaction();
                 
             digitalWrite(16, HIGH);
-            delayMicroseconds(500); //Give Hatchling time to execute an SPI command 
+            delayMicroseconds(SPI_DELAY); //Give Hatchling time to execute an SPI command 
 
             // The following code checks if things actually got sent properly - might need to implement something similar
             /*bool settingGood = false;

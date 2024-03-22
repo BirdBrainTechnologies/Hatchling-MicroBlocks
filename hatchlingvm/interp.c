@@ -23,6 +23,13 @@
 
 #define RECENT 10000000
 
+// Hatchling component types
+#define SERVO 1
+#define MOTOR 2
+#define FAIRY 3
+#define NEOPXL 4
+#define NEOPXL_STRIP 5
+
 // Interpreter State
 
 CodeChunkRecord chunks[MAX_CHUNKS];
@@ -217,6 +224,172 @@ OBJ primBoardType() {
 	int wordCount = (strlen(boardTypeObj.body) + 4) / 4;
 	boardTypeObj.header = HEADER(StringType, wordCount);
 	return (OBJ) &boardTypeObj;
+}
+
+// Hatchling Inline Primitives
+
+static int hatchlingNoteIsPlaying = false;
+static uint32 hatchlingNoteEndTime = 0;  // microseconds
+
+static int portActive[6] = {false, false, false, false, false, false};
+static int portType[6] = {0, 0, 0, 0, 0, 0};
+static uint32 portEndTime[6] = {0, 0, 0, 0, 0, 0}; // microseconds
+
+static OBJ primHatchlingPlayNote(int argCount, OBJ *args) {
+	// Args: pitch, duration in milliseconds
+	// Use built-in speaker pin for output.
+	// Sets hatchlingNoteEndTime and expects interpreter loop to turn it off.
+
+	int pitch = evalInt(args[0]);
+	if ((pitch < 10) || (pitch > 20000)) return falseObj;
+
+	int durationMSecs = evalInt(args[1]);
+	if (durationMSecs < 10) return falseObj; // too short
+
+	// start playing tone
+	OBJ toneArgs[] = { int2obj(-1), int2obj(pitch) };
+	primPlayTone(2, toneArgs);
+
+	hatchlingNoteIsPlaying = true;
+	hatchlingNoteEndTime = microsecs() + (1000 * durationMSecs);
+	taskSleep(durationMSecs);
+
+	return falseObj;
+}
+
+static OBJ primHatchlingServoWithDelay(int argCount, OBJ *args) {
+	// Args: port, position, duration in milliseconds
+	// Sets endTime
+
+    if (!IS_TYPE(args[0], StringType)) return fail(needsStringError);
+    int ch = obj2str(args[0])[0];
+    int pinNum = -1; // default value: invalid port
+    if (('A' <= ch) && (ch <= 'F')) pinNum = ch - 'A';
+    if (('a' <= ch) && (ch <= 'f')) pinNum = ch - 'a';
+
+	if(pinNum == -1) return falseObj;
+
+	int durationMSecs = evalInt(args[2]);
+	if (durationMSecs < 10 || durationMSecs > 10000) return falseObj; // too short or too long (10 seconds+)
+
+	// start servo
+	OBJ servoArgs[] = { args[0], args[1] };
+	primPositionServos(2, servoArgs);
+
+	portActive[pinNum] = true;
+	portEndTime[pinNum] = microsecs() + (1000 * durationMSecs);
+	portType[pinNum] = SERVO;
+	taskSleep(durationMSecs);
+
+	return falseObj;
+}
+
+static OBJ primHatchlingMotorWithDelay(int argCount, OBJ *args) {
+	// Args: port, speed, duration in milliseconds
+	// Sets endTime and expects vmLoop to turn it off
+
+    if (!IS_TYPE(args[0], StringType)) return fail(needsStringError);
+    int ch = obj2str(args[0])[0];
+    int pinNum = -1; // default value: invalid port
+    if (('A' <= ch) && (ch <= 'F')) pinNum = ch - 'A';
+    if (('a' <= ch) && (ch <= 'f')) pinNum = ch - 'a';
+
+	if(pinNum == -1) return falseObj;
+
+	int durationMSecs = evalInt(args[2]);
+	if (durationMSecs < 10 || durationMSecs > 10000) return falseObj; // too short or too long (10 seconds+)
+
+	// start motor
+	OBJ motorArgs[] = { args[0], args[1] };
+	primRotationServos(2, motorArgs);
+
+	portActive[pinNum] = true;
+	portEndTime[pinNum] = microsecs() + (1000 * durationMSecs);
+	portType[pinNum] = MOTOR;
+	taskSleep(durationMSecs);
+
+	return falseObj;
+}
+
+static OBJ primHatchlingFairyLightWithDelay(int argCount, OBJ *args) {
+	// Args: port, intensity, duration in milliseconds
+	// Sets endTime and expects vmLoop to turn it off
+
+    if (!IS_TYPE(args[0], StringType)) return fail(needsStringError);
+    int ch = obj2str(args[0])[0];
+    int pinNum = -1; // default value: invalid port
+    if (('A' <= ch) && (ch <= 'F')) pinNum = ch - 'A';
+    if (('a' <= ch) && (ch <= 'f')) pinNum = ch - 'a';
+
+	if(pinNum == -1) return falseObj;
+
+	int durationMSecs = evalInt(args[2]);
+	if (durationMSecs < 10 || durationMSecs > 10000) return falseObj; // too short or too long (10 seconds+)
+
+	// start fairy lights
+	OBJ fairyArgs[] = { args[0], args[1] };
+	primFairyLights(2, fairyArgs);
+
+	portActive[pinNum] = true;
+	portEndTime[pinNum] = microsecs() + (1000 * durationMSecs);
+	portType[pinNum] = FAIRY;
+	taskSleep(durationMSecs);
+
+	return falseObj;
+}
+
+static OBJ primNeopixelWithDelay(int argCount, OBJ *args) {
+	// Args: port, intensity (RGB), duration in milliseconds
+	// Sets endTime and expects vmLoop to turn it off
+
+    if (!IS_TYPE(args[0], StringType)) return fail(needsStringError);
+    int ch = obj2str(args[0])[0];
+    int pinNum = -1; // default value: invalid port
+    if (('A' <= ch) && (ch <= 'F')) pinNum = ch - 'A';
+    if (('a' <= ch) && (ch <= 'f')) pinNum = ch - 'a';
+
+	if(pinNum == -1) return falseObj;
+
+	int durationMSecs = evalInt(args[2]);
+	if (durationMSecs < 10 || durationMSecs > 10000) return falseObj; // too short or too long (10 seconds+)
+
+	// start neopixel light
+	OBJ NeopixelArgs[] = {args[0], args[1], args[2], args[3]};
+	primFairyLights(4, NeopixelArgs);
+
+	portActive[pinNum] = true;
+	portEndTime[pinNum] = microsecs() + (1000 * durationMSecs);
+	portType[pinNum] = NEOPXL;
+	taskSleep(durationMSecs);
+
+	return falseObj;
+}
+
+static OBJ primNeopixelStripWithDelay(int argCount, OBJ *args) {
+	// Args: port, intensity (RGB), duration in milliseconds - sets all LEDs at once
+	// Sets endTime and expects vmLoop to turn it off
+
+    if (!IS_TYPE(args[0], StringType)) return fail(needsStringError);
+    int ch = obj2str(args[0])[0];
+    int pinNum = -1; // default value: invalid port
+    if (('A' <= ch) && (ch <= 'F')) pinNum = ch - 'A';
+    if (('a' <= ch) && (ch <= 'f')) pinNum = ch - 'a';
+
+	if(pinNum == -1) return falseObj;
+
+	int durationMSecs = evalInt(args[2]);
+	if (durationMSecs < 10 || durationMSecs > 10000) return falseObj; // too short or too long (10 seconds+)
+
+	// start strip lights
+	OBJ NeopixelStripArgs[] = {args[0], "all", args[1], args[2], args[3]};
+	primFairyLights(5, NeopixelStripArgs);
+
+	portActive[pinNum] = true;
+	portEndTime[pinNum] = microsecs() + (1000 * durationMSecs);
+	portType[pinNum] = NEOPXL_STRIP;
+	taskSleep(durationMSecs);
+
+	return falseObj;
 }
 
 // Misc primitives
@@ -560,12 +733,12 @@ static void runTask(Task *task) {
 		&&drawShape_op,
 		&&shapeForLetter_op,
 		&&neoPixelSetPin_op,
-		&&RESERVED_op,
-		&&RESERVED_op,
-		&&RESERVED_op,
-		&&RESERVED_op,
-		&&RESERVED_op,
-		&&RESERVED_op,
+		&&hatchlingPlayNote_op, // Adding the Hatchling delay built-in primitives
+		&&hatchlingServoWithDelay_op,
+		&&hatchlingMotorWithDelay_op,
+		&&hatchlingFairyLightWithDelay_op,
+		&&hatchlingNeopixelWithDelay_op,
+		&&hatchlingNeopixelStripWithDelay_op,
 		&&RESERVED_op,
 		&&RESERVED_op,
 		&&RESERVED_op,
@@ -1243,6 +1416,30 @@ static void runTask(Task *task) {
 		primNeoPixelSetPin(arg, sp - arg);
 		POP_ARGS_COMMAND();
 		DISPATCH();
+	hatchlingPlayNote_op: // Adding the Hatchling delay-based built-in primitives
+		*(sp - arg) = primHatchlingPlayNote(arg, sp - arg);
+		POP_ARGS_COMMAND();
+		DISPATCH();
+	hatchlingServoWithDelay_op:
+		*(sp - arg) = primHatchlingServoWithDelay(arg, sp - arg);
+		POP_ARGS_COMMAND();
+		DISPATCH();
+	hatchlingMotorWithDelay_op: // Adding the Hatchling Play Note built-in primitive
+		*(sp - arg) = primHatchlingMotorWithDelay(arg, sp - arg);
+		POP_ARGS_COMMAND();
+		DISPATCH();
+	hatchlingFairyLightWithDelay_op: // Adding the Hatchling Play Note built-in primitive
+		*(sp - arg) = primHatchlingFairyLightWithDelay(arg, sp - arg);
+		POP_ARGS_COMMAND();
+		DISPATCH();
+	hatchlingNeopixelWithDelay_op: // Adding the Hatchling Play Note built-in primitive
+		*(sp - arg) = primNeopixelWithDelay(arg, sp - arg);
+		POP_ARGS_COMMAND();
+		DISPATCH();
+	hatchlingNeopixelStripWithDelay_op: // Adding the Hatchling Play Note built-in primitive
+		*(sp - arg) = primNeopixelStripWithDelay(arg, sp - arg);
+		POP_ARGS_COMMAND();
+		DISPATCH();		
 
 	// call a function using the function name and parameter list:
 	callCustomCommand_op:
@@ -1329,10 +1526,27 @@ void vmLoop() {
 	bool prevBLEConnect = false;
 	bool advertisingTimeOver = false; 
 	OBJ tone_args[2];
+	// Arguments for stopping a port if it has been activated using Level 1 blocks
+	OBJ motor_args[2];
+	OBJ fairy_args[2];
+	OBJ neopixel_args[4];
+	OBJ neopixel_strip_args[5];
+
 	uint8_t noteState = 255;
 	
-	// No need to change this every time - we always used the internal buzzer, which is pin -1
+	// No need to change this every time - we always used the internal buzzer, which is pin -1, and we always want to turn off the ports, so these should be 0
 	tone_args[0] = int2obj(-1);
+	motor_args[1] = int2obj(0);
+	fairy_args[1] = int2obj(0);
+	neopixel_args[1] = int2obj(0);
+	neopixel_args[2] = int2obj(0);
+	neopixel_args[3] = int2obj(0);
+	neopixel_strip_args[1] = "all";
+	neopixel_strip_args[2] = int2obj(0);
+	neopixel_strip_args[3] = int2obj(0);
+	neopixel_strip_args[4] = int2obj(0);
+
+
 
 	while (true) {
 		if (count-- < 0) {
@@ -1487,6 +1701,47 @@ void vmLoop() {
 			noteState=255;
 		}
 
+		// turn off currently playing note, if any
+		if (hatchlingNoteIsPlaying && (microsecs() > hatchlingNoteEndTime)) {
+			tone_args[1] = int2obj(0);
+			primPlayTone(2, tone_args);
+			hatchlingNoteIsPlaying = false;
+		}
+
+		// Turn off any ports that need to be turned off
+		for(int pinNum = 0; pinNum < 6; pinNum++)
+		{
+			if(portActive[pinNum] && (microsecs() > portEndTime[pinNum])) {
+				switch(portType[pinNum]) {
+					// We don't depower the servo
+					case SERVO:
+						portActive[pinNum] = false;
+						break;				
+					case MOTOR:
+						motor_args[0] = int2obj(pinNum+'A');
+						primRotationServos(2, motor_args);
+						portActive[pinNum] = false;
+						break;		
+					case FAIRY:
+						fairy_args[0] = int2obj(pinNum+'A');
+						primFairyLights(2, fairy_args);
+						portActive[pinNum] = false;
+						break;
+					case NEOPXL:
+						neopixel_args[0] = int2obj(pinNum+'A');
+						primNeoPixel(4, neopixel_args);
+						portActive[pinNum] = false;
+						break;
+					case NEOPXL_STRIP:
+						neopixel_strip_args[0] = int2obj(pinNum+'A');
+						primNeoPixelStrip(5, neopixel_strip_args);
+						portActive[pinNum] = false;
+						break;
+					default:
+						break;
+				}
+			}
+		}
 
 		updateMicrobitDisplay();
 		checkButtons();

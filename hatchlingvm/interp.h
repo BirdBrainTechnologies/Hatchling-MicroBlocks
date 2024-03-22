@@ -339,6 +339,15 @@ OBJ primNeoPixelSend(int argCount, OBJ *args);
 OBJ primNeoPixelSetPin(int argCount, OBJ *args);
 
 OBJ primPlayTone(int argCount, OBJ *args);
+
+// Hatchling primitives
+OBJ primFairyLights(int argCount, OBJ *args);
+OBJ primPositionServos(int argCount, OBJ *args);
+OBJ primRotationServos(int argCount, OBJ *args);
+OBJ primNeoPixel(int argCount, OBJ *args);
+OBJ primNeoPixelStrip(int argCount, OBJ *args);
+
+
 // BLE Support
 
 extern int BLE_connected_to_IDE;
