@@ -350,7 +350,7 @@ static OBJ primNeopixelWithDelay(int argCount, OBJ *args) {
 
 	if(pinNum == -1) return falseObj;
 
-	int durationMSecs = evalInt(args[2]);
+	int durationMSecs = evalInt(args[4]);
 	if (durationMSecs < 10 || durationMSecs > 10000) return falseObj; // too short or too long (10 seconds+)
 
 	// start neopixel light
@@ -377,7 +377,7 @@ static OBJ primNeopixelStripWithDelay(int argCount, OBJ *args) {
 
 	if(pinNum == -1) return falseObj;
 
-	int durationMSecs = evalInt(args[2]);
+	int durationMSecs = evalInt(args[4]);
 	if (durationMSecs < 10 || durationMSecs > 10000) return falseObj; // too short or too long (10 seconds+)
 
 	// start strip lights
