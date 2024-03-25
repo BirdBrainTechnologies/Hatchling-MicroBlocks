@@ -381,7 +381,7 @@ static OBJ primNeopixelStripWithDelay(int argCount, OBJ *args) {
 	if (durationMSecs < 10 || durationMSecs > 10000) return falseObj; // too short or too long (10 seconds+)
 
 	// start strip lights
-	OBJ NeopixelStripArgs[] = {args[0], "all", args[1], args[2], args[3]};
+	OBJ NeopixelStripArgs[] = {args[0], newStringFromBytes((const char *) "all", 3), args[1], args[2], args[3]};
 	primFairyLights(5, NeopixelStripArgs);
 
 	portActive[pinNum] = true;
@@ -1541,7 +1541,7 @@ void vmLoop() {
 	neopixel_args[1] = int2obj(0);
 	neopixel_args[2] = int2obj(0);
 	neopixel_args[3] = int2obj(0);
-	neopixel_strip_args[1] = "all";
+	neopixel_strip_args[1] = newStringFromBytes((const char *) "all", 3);
 	neopixel_strip_args[2] = int2obj(0);
 	neopixel_strip_args[3] = int2obj(0);
 	neopixel_strip_args[4] = int2obj(0);
