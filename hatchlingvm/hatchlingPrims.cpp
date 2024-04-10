@@ -144,6 +144,15 @@ void setPortsViaSPI()
     delayMicroseconds(SPI_DELAY); //Give Hatchling time to execute an SPI command 
 }
 
+// Helper function used with turning off the port on a time delay
+void stopHLPort(int pinNum)
+{
+    PortValuesCommand[pinNum*3 + 1] = 0;
+    PortValuesCommand[pinNum*3 + 2] = 0;
+    PortValuesCommand[pinNum*3 + 3] = 0;
+    setPortsViaSPI();
+}
+
 // Primitives
 
 // Function to control attached Fairy Lights

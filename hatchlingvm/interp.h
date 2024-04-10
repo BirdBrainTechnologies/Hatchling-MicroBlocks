@@ -346,7 +346,8 @@ OBJ primPositionServos(int argCount, OBJ *args);
 OBJ primRotationServos(int argCount, OBJ *args);
 OBJ primNeoPixel(int argCount, OBJ *args);
 OBJ primNeoPixelStrip(int argCount, OBJ *args);
-
+// Helper function used with turning off the port on a time delay
+void stopHLPort(int pinNum);
 
 // BLE Support
 

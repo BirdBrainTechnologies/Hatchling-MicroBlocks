@@ -355,7 +355,7 @@ static OBJ primNeopixelWithDelay(int argCount, OBJ *args) {
 
 	// start neopixel light
 	OBJ NeopixelArgs[] = {args[0], args[1], args[2], args[3]};
-	primFairyLights(4, NeopixelArgs);
+	primNeoPixel(4, NeopixelArgs);
 
 	portActive[pinNum] = true;
 	portEndTime[pinNum] = microsecs() + (1000 * durationMSecs);
@@ -382,7 +382,7 @@ static OBJ primNeopixelStripWithDelay(int argCount, OBJ *args) {
 
 	// start strip lights
 	OBJ NeopixelStripArgs[] = {args[0], newStringFromBytes((const char *) "all", 3), args[1], args[2], args[3]};
-	primFairyLights(5, NeopixelStripArgs);
+	primNeoPixelStrip(5, NeopixelStripArgs);
 
 	portActive[pinNum] = true;
 	portEndTime[pinNum] = microsecs() + (1000 * durationMSecs);
@@ -1424,19 +1424,19 @@ static void runTask(Task *task) {
 		*(sp - arg) = primHatchlingServoWithDelay(arg, sp - arg);
 		POP_ARGS_COMMAND();
 		DISPATCH();
-	hatchlingMotorWithDelay_op: // Adding the Hatchling Play Note built-in primitive
+	hatchlingMotorWithDelay_op: 
 		*(sp - arg) = primHatchlingMotorWithDelay(arg, sp - arg);
 		POP_ARGS_COMMAND();
 		DISPATCH();
-	hatchlingFairyLightWithDelay_op: // Adding the Hatchling Play Note built-in primitive
+	hatchlingFairyLightWithDelay_op: 
 		*(sp - arg) = primHatchlingFairyLightWithDelay(arg, sp - arg);
 		POP_ARGS_COMMAND();
 		DISPATCH();
-	hatchlingNeopixelWithDelay_op: // Adding the Hatchling Play Note built-in primitive
+	hatchlingNeopixelWithDelay_op: 
 		*(sp - arg) = primNeopixelWithDelay(arg, sp - arg);
 		POP_ARGS_COMMAND();
 		DISPATCH();
-	hatchlingNeopixelStripWithDelay_op: // Adding the Hatchling Play Note built-in primitive
+	hatchlingNeopixelStripWithDelay_op: 
 		*(sp - arg) = primNeopixelStripWithDelay(arg, sp - arg);
 		POP_ARGS_COMMAND();
 		DISPATCH();		
@@ -1707,7 +1707,8 @@ void vmLoop() {
 			primPlayTone(2, tone_args);
 			hatchlingNoteIsPlaying = false;
 		}
-
+		
+		char dataToSend[4];
 		// Turn off any ports that need to be turned off
 		for(int pinNum = 0; pinNum < 6; pinNum++)
 		{
@@ -1718,22 +1719,14 @@ void vmLoop() {
 						portActive[pinNum] = false;
 						break;				
 					case MOTOR:
-						motor_args[0] = int2obj(pinNum+'A');
-						primRotationServos(2, motor_args);
-						portActive[pinNum] = false;
-						break;		
 					case FAIRY:
-						fairy_args[0] = int2obj(pinNum+'A');
-						primFairyLights(2, fairy_args);
-						portActive[pinNum] = false;
-						break;
 					case NEOPXL:
-						neopixel_args[0] = int2obj(pinNum+'A');
-						primNeoPixel(4, neopixel_args);
+						stopHLPort(pinNum);
 						portActive[pinNum] = false;
 						break;
+					// Currently broken, needs to be fixed
 					case NEOPXL_STRIP:
-						neopixel_strip_args[0] = int2obj(pinNum+'A');
+						neopixel_strip_args[0] = newStringFromBytes((pinNum+65),1);
 						primNeoPixelStrip(5, neopixel_strip_args);
 						portActive[pinNum] = false;
 						break;
