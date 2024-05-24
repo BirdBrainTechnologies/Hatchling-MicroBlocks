@@ -270,17 +270,24 @@ static OBJ primHatchlingServoWithDelay(int argCount, OBJ *args) {
 	if(pinNum == -1) return falseObj;
 
 	int durationMSecs = evalInt(args[2]);
-	if (durationMSecs < 10 || durationMSecs > 10000) return falseObj; // too short or too long (10 seconds+)
+	if (durationMSecs > 10000) return falseObj; // too long (10 seconds+)
 
 	// start servo
 	OBJ servoArgs[] = { args[0], args[1] };
 	primPositionServos(2, servoArgs);
 
-	portActive[pinNum] = true;
-	portEndTime[pinNum] = microsecs() + (1000 * durationMSecs);
-	portType[pinNum] = SERVO;
-	taskSleep(durationMSecs);
-
+	// If the duration is very short, then just set the port and do not turn it back off later
+	if(durationMSecs < 10)
+	{
+		portActive[pinNum] = false; // In case it is already true from being set previously. Port Active just means that it needs to be turned off later
+		portType[pinNum] = SERVO; // Set the type regardless
+	}
+	else {
+		portActive[pinNum] = true;
+		portEndTime[pinNum] = microsecs() + (1000 * durationMSecs);
+		portType[pinNum] = SERVO; // Set the type regardless
+		taskSleep(durationMSecs);
+	}
 	return falseObj;
 }
 
@@ -297,17 +304,24 @@ static OBJ primHatchlingMotorWithDelay(int argCount, OBJ *args) {
 	if(pinNum == -1) return falseObj;
 
 	int durationMSecs = evalInt(args[2]);
-	if (durationMSecs < 10 || durationMSecs > 10000) return falseObj; // too short or too long (10 seconds+)
+	if (durationMSecs > 10000) return falseObj; // too long (10 seconds+)
 
 	// start motor
 	OBJ motorArgs[] = { args[0], args[1] };
 	primRotationServos(2, motorArgs);
 
-	portActive[pinNum] = true;
-	portEndTime[pinNum] = microsecs() + (1000 * durationMSecs);
-	portType[pinNum] = MOTOR;
-	taskSleep(durationMSecs);
-
+	// If the duration is very short, then just set the port and do not turn it back off later
+	if(durationMSecs < 10)
+	{
+		portActive[pinNum] = false; // In case it is already true from being set previously. Port Active just means that it needs to be turned off later
+		portType[pinNum] = MOTOR; // Set the type regardless
+	}
+	else {
+		portActive[pinNum] = true;
+		portEndTime[pinNum] = microsecs() + (1000 * durationMSecs);
+		portType[pinNum] = MOTOR; // Set the type regardless
+		taskSleep(durationMSecs);
+	}
 	return falseObj;
 }
 
@@ -324,17 +338,25 @@ static OBJ primHatchlingFairyLightWithDelay(int argCount, OBJ *args) {
 	if(pinNum == -1) return falseObj;
 
 	int durationMSecs = evalInt(args[2]);
-	if (durationMSecs < 10 || durationMSecs > 10000) return falseObj; // too short or too long (10 seconds+)
+	if (durationMSecs > 10000) return falseObj; // too long (10 seconds+)
 
 	// start fairy lights
 	OBJ fairyArgs[] = { args[0], args[1] };
 	primFairyLights(2, fairyArgs);
 
-	portActive[pinNum] = true;
-	portEndTime[pinNum] = microsecs() + (1000 * durationMSecs);
-	portType[pinNum] = FAIRY;
-	taskSleep(durationMSecs);
-
+	// If the duration is very short, then just set the port and do not turn it back off later
+	if(durationMSecs < 10)
+	{
+		portActive[pinNum] = false; // In case it is already true from being set previously. Port Active just means that it needs to be turned off later
+		portType[pinNum] = FAIRY; // Set the type regardless
+	}
+	else
+	{
+		portActive[pinNum] = true;
+		portEndTime[pinNum] = microsecs() + (1000 * durationMSecs);
+		portType[pinNum] = FAIRY; // Set the type regardless
+		taskSleep(durationMSecs);
+	}
 	return falseObj;
 }
 
@@ -351,17 +373,24 @@ static OBJ primNeopixelWithDelay(int argCount, OBJ *args) {
 	if(pinNum == -1) return falseObj;
 
 	int durationMSecs = evalInt(args[4]);
-	if (durationMSecs < 10 || durationMSecs > 10000) return falseObj; // too short or too long (10 seconds+)
+	if (durationMSecs > 10000) return falseObj; // too long (10 seconds+)
 
 	// start neopixel light
 	OBJ NeopixelArgs[] = {args[0], args[1], args[2], args[3]};
 	primNeoPixel(4, NeopixelArgs);
-
-	portActive[pinNum] = true;
-	portEndTime[pinNum] = microsecs() + (1000 * durationMSecs);
-	portType[pinNum] = NEOPXL;
-	taskSleep(durationMSecs);
-
+	// If the duration is very short, then just set the port and do not turn it back off later
+	if(durationMSecs < 10)
+	{
+		portActive[pinNum] = false; // In case it is already true from being set previously. Port Active just means that it needs to be turned off later
+		portType[pinNum] = NEOPXL; // Set the type regardless
+	}
+	else
+	{
+		portActive[pinNum] = true;
+		portEndTime[pinNum] = microsecs() + (1000 * durationMSecs);
+		portType[pinNum] = NEOPXL;
+		taskSleep(durationMSecs);
+	}
 	return falseObj;
 }
 
@@ -378,17 +407,24 @@ static OBJ primNeopixelStripWithDelay(int argCount, OBJ *args) {
 	if(pinNum == -1) return falseObj;
 
 	int durationMSecs = evalInt(args[4]);
-	if (durationMSecs < 10 || durationMSecs > 10000) return falseObj; // too short or too long (10 seconds+)
+	if (durationMSecs > 10000) return falseObj; // too long (10 seconds+)
 
 	// start strip lights
 	OBJ NeopixelStripArgs[] = {args[0], newStringFromBytes((const char *) "all", 3), args[1], args[2], args[3]};
 	primNeoPixelStrip(5, NeopixelStripArgs);
-
-	portActive[pinNum] = true;
-	portEndTime[pinNum] = microsecs() + (1000 * durationMSecs);
-	portType[pinNum] = NEOPXL_STRIP;
-	taskSleep(durationMSecs);
-
+	// If the duration is very short, then just set the port and do not turn it back off later
+	if(durationMSecs < 10)
+	{
+		portActive[pinNum] = false; // In case it is already true from being set previously. Port Active just means that it needs to be turned off later
+		portType[pinNum] = NEOPXL_STRIP; // Set the type regardless
+	}
+	else
+	{
+		portActive[pinNum] = true;
+		portEndTime[pinNum] = microsecs() + (1000 * durationMSecs);
+		portType[pinNum] = NEOPXL_STRIP;
+		taskSleep(durationMSecs);
+	}
 	return falseObj;
 }
 
@@ -1513,29 +1549,29 @@ void vmLoop() {
 	// Run the next runnable task. Wake up any waiting tasks whose wakeup time has arrived.
 
 	int count = 0;
-	int i = 0;
-	int initialCount = 0;
+//	int i = 0;
+//	int initialCount = 0;
 	uint8 hlData[8]; // Array to hold Hatchling sensor data and port states
     uint32 timeToSPI = microsecs();
-	uint32 timeToChange = millis();
+//	uint32 timeToChange = millis();
 	uint32 timeToTransmit = millis();
-	uint32 startTime = millis();
+//	uint32 startTime = millis();
 	int soundTime = 100;
-	int timeOut = 15000; // The Hatchling will stop displaying its initials and color code after 15 seconds (or earlier if BLE gets connected)
+//	int timeOut = 15000; // The Hatchling will stop displaying its initials and color code after 15 seconds (or earlier if BLE gets connected)
 	bool isBLEConnect = false;
-	bool prevBLEConnect = false;
-	bool advertisingTimeOver = false; 
+//	bool prevBLEConnect = false;
+//	bool advertisingTimeOver = false; 
 	OBJ tone_args[2];
 	// Arguments for stopping a port if it has been activated using Level 1 blocks
-	OBJ motor_args[2];
+	/*OBJ motor_args[2];
 	OBJ fairy_args[2];
 	OBJ neopixel_args[4];
-	OBJ neopixel_strip_args[5];
+	OBJ neopixel_strip_args[5];*/
 
 	uint8_t noteState = 255;
 	
 	// No need to change this every time - we always used the internal buzzer, which is pin -1, and we always want to turn off the ports, so these should be 0
-	tone_args[0] = int2obj(-1);
+	/*tone_args[0] = int2obj(-1);
 	motor_args[1] = int2obj(0);
 	fairy_args[1] = int2obj(0);
 	neopixel_args[1] = int2obj(0);
@@ -1544,7 +1580,7 @@ void vmLoop() {
 	neopixel_strip_args[1] = newStringFromBytes((const char *) "all", 3);
 	neopixel_strip_args[2] = int2obj(0);
 	neopixel_strip_args[3] = int2obj(0);
-	neopixel_strip_args[4] = int2obj(0);
+	neopixel_strip_args[4] = int2obj(0);*/
 
 
 
@@ -1708,7 +1744,6 @@ void vmLoop() {
 			hatchlingNoteIsPlaying = false;
 		}
 		
-		char dataToSend[4];
 		// Turn off any ports that need to be turned off
 		for(int pinNum = 0; pinNum < 6; pinNum++)
 		{
@@ -1724,10 +1759,10 @@ void vmLoop() {
 						stopHLPort(pinNum);
 						portActive[pinNum] = false;
 						break;
-					// Currently broken, needs to be fixed
+					// Currently broken, needs to be fixed, probably need a stopHLNeoPixelStripPort or something
 					case NEOPXL_STRIP:
-						neopixel_strip_args[0] = newStringFromBytes((pinNum+65),1);
-						primNeoPixelStrip(5, neopixel_strip_args);
+					/*	neopixel_strip_args[0] = newStringFromBytes((pinNum+65),1);
+						primNeoPixelStrip(5, neopixel_strip_args);*/
 						portActive[pinNum] = false;
 						break;
 					default:
