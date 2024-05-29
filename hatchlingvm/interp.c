@@ -1562,6 +1562,7 @@ void vmLoop() {
 //	bool prevBLEConnect = false;
 //	bool advertisingTimeOver = false; 
 	OBJ tone_args[2];
+	tone_args[0] = int2obj(-1);
 	// Arguments for stopping a port if it has been activated using Level 1 blocks
 	/*OBJ motor_args[2];
 	OBJ fairy_args[2];
