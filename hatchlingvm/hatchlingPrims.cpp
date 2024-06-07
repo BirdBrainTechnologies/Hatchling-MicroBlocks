@@ -275,14 +275,15 @@ OBJ primNeoPixel(int argCount, OBJ *args) {
     {
         return args[0];
     }
-	int redVal = obj2int(args[1])*255/100;
-	if (redVal < 0) redVal = 0;
-	if (redVal > 255) redVal = 255;
-	
-    int greenVal = obj2int(args[2])*255/100;
+    // Red and Green are switched on later LEDs, so red = arg 2, green = arg 1. I have not done this for the Neopixel strip
+    int greenVal = obj2int(args[1])*255/100;
 	if (greenVal < 0) greenVal = 0;
 	if (greenVal > 255) greenVal = 255;	
-    
+
+	int redVal = obj2int(args[2])*255/100;
+	if (redVal < 0) redVal = 0;
+	if (redVal > 255) redVal = 255;
+   
     int blueVal = obj2int(args[3])*255/100;
 	if (blueVal < 0) blueVal = 0;
 	if (blueVal > 255) blueVal = 255;
