@@ -55,7 +55,7 @@ static int spiMode = SPI_MODE0;
 #define HL_BATT_THRESH1                              211							//Three yellow leds below this
 #define HL_BATT_THRESH2                              194	
 
-#define SPI_DELAY                                    250                           // Determines how long to wait after an SPI command for the Hatchling to execute on the command. 
+#define SPI_DELAY                                    500                           // Determines how long to wait after an SPI command for the Hatchling to execute on the command. 
                                                                                    // Potential improvement - only do this if two SPI commands are sent immediately one after the other 
 
 // Port ID values - basically, what raw analog sensor reading corresponds to what specific component?
@@ -74,12 +74,15 @@ uint16_t Filtered_ID_Vals[GP_PORT_TOTAL] = {0, 0, 0, 0, 0, 0};
 //uint8 Port_lock[6] = {0, 0, 0, 0, 0, 0}; // If we've identified that a component is attached, lock that port so it only changes if it first goes through an "unplugged" situation
 bool Port_lock[6] = {false, false, false, false, false, false}; // If we've identified that a component is attached, lock that port so it only changes if it first goes through an "unplugged" situation
 
+
 // Since any time you set one port you have to set all ports, create a port values command array that holds the current setting of all ports
 uint8 PortValuesCommand[SPICMDLENGTH] = {HATCHLING_SET_GP_PORTS, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 // Need a different command to control a Neopixel strip, and we need 6 of these to store up to six potential strip states
 uint8 PixelStripCommand[6][SPICMDLENGTH];// = {HATCHLING_SET_EXTERNAL_PXL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-
-
+// Holds the port states that we have passed on to the hatchling
+uint8 setPortCommands[SPICMDLENGTH] = {HATCHLING_SET_PORT_STATES, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+bool sendUpdateCommand = false; // Used to determine if we need to send an port state update via SPI
+bool checkPortSetting = false; // We use this to indicate if we need to check if the ports are set correctly
 uint8 stabilizeCounter = 0;
 
 uint8 GPSensorValues[GP_PORT_TOTAL] = {0, 0, 0, 0, 0, 0};
@@ -495,101 +498,110 @@ void readHatchlingSensors() {
     // If you've waited twenty cycles for values to stabilize, time to update the Hatchling port states
     else if(stabilizeCounter == 20)
     {   
-        stabilizeCounter++;
-        
-        uint8 setPortCommands[SPICMDLENGTH];
-        
-        memset(setPortCommands, 0, SPICMDLENGTH);
-        setPortCommands[0] = HATCHLING_SET_PORT_STATES;
-        bool sendUpdateCommand = false;
+        stabilizeCounter++; // Prevents this from being used again                
+
         for(int i=0; i < GP_PORT_TOTAL; i++)
         {
-            // Only update the state if the port is not locked
-            // To unlock a port the value needs to go to 0 (nothing plugged in) before turning back into something. 
-            if(GP_ID_vals_compare[i] == 0 || GP_ID_vals_compare[i] == 31)
+            // Only update the state of the port if it has changed
+            if(GP_ID_vals[i] != GP_ID_vals_compare[i])
             {
-                Port_lock[i] = false; // Unlock the port if nothing is plugged in
-                GP_ID_vals[i] = GP_ID_vals_compare[i]; // Update the value sent to the tablet/device
-                sendUpdateCommand = true; // Make sure to update the Hatchling daughter controller so it knows to update the port to a "port off" state
-            }
-            // If the port is unlocked, you can update it to the new component that is plugged into it
-            else if(Port_lock[i] == false)
-            {
-                GP_ID_vals[i] = GP_ID_vals_compare[i];
-                sendUpdateCommand = true;
-                Port_lock[i] = true; // Lock the port since we are setting it
-            }
-            // Update the state of the port
-            if((GP_ID_vals[i] ==1) || (GP_ID_vals[i] == 2))
-            {
-                setPortCommands[i+1] = ROTATION_SERVO;
-            }
-            else if((GP_ID_vals[i] > 2) && (GP_ID_vals[i] < 7))
-            {
-                setPortCommands[i+1] = POSITION_SERVO;
-            }
-            else if((GP_ID_vals[i] == 7) || (GP_ID_vals[i] == 9))
-            {
-                setPortCommands[i+1] = NEOPXL_SINGLE;
-            }
-            else if(GP_ID_vals[i] == 10)
-            {
-                setPortCommands[i+1] = NEOPXL_STRIP;
-            }
-            else if((GP_ID_vals[i] > 10) && (GP_ID_vals[i] < 22))
-            {
-                setPortCommands[i+1] = ANALOG_SENSOR;
-            }
-            else if((GP_ID_vals[i] == 8) || ((GP_ID_vals[i] > 21) && (GP_ID_vals[i] < 26)))
-            {
-                setPortCommands[i+1] = DIGITAL_OUT;
-            }
-            else
-            {
-                setPortCommands[i+1] = PORTOFF;
+                // Only update the state if the port is not locked
+                // To unlock a port the value needs to go to 0 (nothing plugged in) before turning back into something. 
+                if(GP_ID_vals_compare[i] == 0 || GP_ID_vals_compare[i] == 31)
+                {
+                    Port_lock[i] = false; // Unlock the port if nothing is plugged in
+                    GP_ID_vals[i] = GP_ID_vals_compare[i]; // Update the value sent to the tablet/device
+                    sendUpdateCommand = true; // Make sure to update the Hatchling daughter controller so it knows to update the port to a "port off" state
+                }
+                // If the port is unlocked, you can update it to the new component that is plugged into it
+                else if(Port_lock[i] == false)
+                {
+                    GP_ID_vals[i] = GP_ID_vals_compare[i];
+                    sendUpdateCommand = true;
+                    Port_lock[i] = true; // Lock the port since we are setting it
+                }
             }
         }
-
-
-        // Only update the settings if at least one port required an update
+        // If we're updating any of the ports, then we need to set all of the ports
         if(sendUpdateCommand)
         {
-            //delayMicroseconds(100); // Give the previous SPI transaction time to wrapup, may be unneeded
-            pinMode(16, OUTPUT);
-            digitalWrite(16, LOW);
-
-            initSPI(); // Does begin transaction in there
-            for (int i = 0; i < SPICMDLENGTH; i++) {
-                SPI.transfer(setPortCommands[i]);
-            }
-            SPI.endTransaction();
-                
-            digitalWrite(16, HIGH);
-            delayMicroseconds(SPI_DELAY); //Give Hatchling time to execute an SPI command 
-
-            // The following code checks if things actually got sent properly - might need to implement something similar
-            /*bool settingGood = false;
-            while(!settingGood)
-            {
-                // Send the update command
-                setHatchlingPortStates(setPortCommands, HATCHLING_SPI_LENGTH);
-                fiber_sleep(5); // It takes 5 ms for the sensor packet to update
-                uint8_t spi_readback[HATCHLING_SPI_SENSOR_LENGTH];    
-                
-                // Check that the Hatchling has successfully received the port settings by reading the sensors
-                spiReadHatchling(spi_readback);
-                settingGood = true;
-                for(i = 0; i < GP_PORT_TOTAL; i++)
+            memset(setPortCommands, 0, SPICMDLENGTH);
+            setPortCommands[0] = HATCHLING_SET_PORT_STATES;
+            for(int i=0; i < GP_PORT_TOTAL; i++)
+            {            
+                // Update the state of the port
+                if((GP_ID_vals[i] ==1) || (GP_ID_vals[i] == 2))
                 {
-                    // If at least one of the commands doesn't agree, we need to set the port states again, then rerun this loop
-                    if(setPortCommands[i+1] != spi_readback[2*i+2])
-                    {
-                        settingGood = false;
-                        //uBit.serial.sendChar(0x43); // For debugging
-                    }
+                    setPortCommands[i+1] = ROTATION_SERVO;
                 }
-            }*/
+                else if((GP_ID_vals[i] > 2) && (GP_ID_vals[i] < 7))
+                {
+                    setPortCommands[i+1] = POSITION_SERVO;
+                }
+                else if((GP_ID_vals[i] == 7) || (GP_ID_vals[i] == 9))
+                {
+                    setPortCommands[i+1] = NEOPXL_SINGLE;
+                }
+                else if(GP_ID_vals[i] == 10)
+                {
+                    setPortCommands[i+1] = NEOPXL_STRIP;
+                }
+                else if((GP_ID_vals[i] > 10) && (GP_ID_vals[i] < 22))
+                {
+                    setPortCommands[i+1] = ANALOG_SENSOR;
+                }
+                else if((GP_ID_vals[i] == 8) || ((GP_ID_vals[i] > 21) && (GP_ID_vals[i] < 26)))
+                {
+                    setPortCommands[i+1] = DIGITAL_OUT;
+                }
+                else
+                {
+                    setPortCommands[i+1] = PORTOFF;
+                }
+            }
         }
+    }
+    
+    // Do the following to check if the port setting went through correctly - does not seem necessary
+    if(checkPortSetting)
+    {
+        for(int i = 0; i < GP_PORT_TOTAL; i++)
+        {
+            // If at least one of the commands doesn't agree, we need to set the port states again
+            if(setPortCommands[i+1] != hatchlingSPISensors[2*i+2])
+            {
+                sendUpdateCommand = true; // Basically, send the update port types command again
+                outputString("Writing Ports Again"); //Debugging only
+            }
+        }
+        checkPortSetting = false; //If sendUpdateCommand isn't true, this will stay false. Otherwise, it'll be true again in the next cycle. 
+    }
+            // Only update the settings if at least one port required an update
+    if(sendUpdateCommand)
+    {
+        // Send the update command
+        pinMode(16, OUTPUT);
+        digitalWrite(16, LOW);
+
+        initSPI(); // Does begin transaction in there
+        for (int i = 0; i < SPICMDLENGTH; i++) {
+            SPI.transfer(setPortCommands[i]);
+        }
+        SPI.endTransaction();
+        
+        digitalWrite(16, HIGH);
+        delayMicroseconds(SPI_DELAY); //Give Hatchling time to execute an SPI command    
+        checkPortSetting = true;
+        sendUpdateCommand = false;
+        /*outputString("Updating Ports"); // For debugging
+        char portCmds[6];
+        for(int i = 0; i < 6; i++)
+        {
+            portCmds[i] = (char)hatchlingSPISensors[i+14];//*2+2];//setPortCommands[i+1];
+        }
+        sendBroadcastToIDE(portCmds,6); // For debugging, to see what we just sent to the Hatchling
+        */
+
     }
 }
 

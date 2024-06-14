@@ -91,17 +91,23 @@ static void show_BLE_ID() {
 	OBJ args[5]; // used to call primitives
 
 	int nameLen = strlen(uniqueName);
-	for (int i = nameLen - 4; i < nameLen; i++) {
-		args[0] = newStringFromBytes(&uniqueName[i], 1);
-		OBJ letterShape = primMBShapeForLetter(1, args);
+	// Display name three times
 
-		args[0] = letterShape;
-		args[1] = int2obj(1);
-		args[2] = int2obj(1);
-		primMBDrawShape(3, args);
-		displayFor(700);
-		primMBDisplayOff(0, args);
-		displayFor(100);
+	for(int j = 0; j < 3; j++)
+	{
+		for (int i = nameLen - 4; i < nameLen; i++) {
+			args[0] = newStringFromBytes(&uniqueName[i], 1);
+			OBJ letterShape = primMBShapeForLetter(1, args);
+
+			args[0] = letterShape;
+			args[1] = int2obj(1);
+			args[2] = int2obj(1);
+			primMBDrawShape(3, args);
+			displayFor(700);
+			primMBDisplayOff(0, args);
+			displayFor(100);
+		}
+		displayFor(1000);
 	}
 	primMBDisplayOff(0, args);
 }

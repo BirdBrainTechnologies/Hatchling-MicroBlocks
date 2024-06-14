@@ -1630,8 +1630,8 @@ void vmLoop() {
 		}
 		prevBLEConnect = isBLEConnect;
 */
-		// Send our sensor data every 500 ms
-		if(millis()-timeToTransmit > 500)
+		// Send our sensor data every 500 ms if we're connected over BLE
+		if(millis()-timeToTransmit > 500 && isBLEConnected())
 		{
 			//queueByte(252);
 			getHatchlingData(hlData);
@@ -1639,7 +1639,8 @@ void vmLoop() {
 			{
 				queueByte(hlData[i]);
 			}*/
-			sendBroadcastToIDE(hlData, 8); // Send port states and other HL sensors
+			// Send port states and other HL sensors if connected over Bluetooth
+			sendBroadcastToIDE(hlData, 8); 
 			timeToTransmit = millis();
 			//sendData(); // Sends all of the bytes we just collected in one packet, even though it is not 20 bytes
 		}
