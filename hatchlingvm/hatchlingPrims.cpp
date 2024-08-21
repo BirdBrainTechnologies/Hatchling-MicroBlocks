@@ -99,35 +99,13 @@ void getHatchlingData(uint8 *hlData)
 {
     int i = 0;
     hlData[0] = 252; // All other returns start with 250 or 251
-    // Copy the sensor data into the array
-    /*for(i= 1; i < GP_PORT_TOTAL+1; i++)
-    {
-        hlData[i] = GPSensorValues[i-1];
-    }*/
+
     // Copy the port states into the array
     for(i= 1; i < GP_PORT_TOTAL+1; i++)
     {
         hlData[i] = GP_ID_vals[i-1];
     }  
     hlData[7] = hatchlingSPISensors[20];
-        // Stuff battery report into 2 bits - this will need to be updated as the thresholds are wrong
-    /*if(hlData[13] < HL_BATT_THRESH2)
-    {
-        hlData[13] = 0; // red LED
-    }
-    else if(hlData[13] < HL_BATT_THRESH1)
-    {
-        hlData[13] = 1; // yellow LEDs
-    }
-    else if(hlData[13] < HL_FULL_BATT)
-    {
-        hlData[13] = 2; // 3 green LEDs
-    }
-    else
-    {
-        hlData[13] = 3; // 4 green LEDs
-    }*/
-
 }
 
 void setPortsViaSPI()
@@ -437,6 +415,30 @@ OBJ primPortState(int argCount, OBJ *args) {
     return int2obj(Filtered_ID_Vals[pinNum]);
 }
 
+
+
+static OBJ primLoudness(int argCount, OBJ *args) {
+	// Read a measure of ambient loudness of the environment from the microphone.
+
+	int result = getLoudness();
+	return int2obj(result);
+}
+
+static OBJ primClaps(int argCount, OBJ *args) {
+	// Read the number of claps since the last time we read the number of claps
+
+	int result = getClaps();
+	return int2obj(result);
+}
+
+static OBJ primButtons(int argCount, OBJ *args) {
+	// Read the number of button presses since the last time we read the number of button presses
+
+	int result = getButtonPresses();
+	return int2obj(result);
+}
+
+
 // Gets called from vmLoop approximately once every 5 ms. Initiates a read transaction and then organizes the data in all of the appropriate spots
 void readHatchlingSensors() {
 
@@ -678,6 +680,9 @@ static PrimEntry entries[] = {
     {"nps", primNeoPixelStrip},
     {"ds", primDistanceSensor},
     {"ps", primPortState},
+	{"ld", primLoudness},
+	{"cl", primClaps},
+	{"bt", primButtons},
 };
 
 void addHatchlingPrims() {

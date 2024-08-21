@@ -292,6 +292,8 @@ static uint32 buttonBDownTime = 0;
 static char buttonAHandled = false;
 static char buttonBHandled = false;
 
+int buttonPresses = 0; // A tracking variable to see how many times the button was pressed since the last time we asked that question
+
 static void startButtonHats(int hatType) {
 	for (int i = 0; i < MAX_CHUNKS; i++) {
 		if (hatType == chunks[i].chunkType) {
@@ -305,7 +307,7 @@ static int mustPollButtons() {
 
 	for (int i = 0; i < MAX_CHUNKS; i++) {
 		int hatType = chunks[i].chunkType;
-		if ((buttonAHat <= hatType) && (hatType <= buttonsAandBHat)) {
+		if ((buttonAHat <= hatType) && (hatType <= buttonsAandBHat)) {  // older version: buttonsAorBHat)) {
 			return true;
 		}
 	}
@@ -339,8 +341,10 @@ void checkButtons() {
 				buttonBHandled = true;
 			} else {
 				startButtonHats(buttonAHat);
+				//startButtonHats(buttonsAorBHat);
 				buttonAHandled = true;
 			}
+			buttonPresses++;
 		}
 	}
 	if (buttonBIsDown && !buttonBDownTime) { // button B up -> down
@@ -352,8 +356,10 @@ void checkButtons() {
 				buttonBHandled = true;
 			} else {
 				startButtonHats(buttonBHat);
+				//startButtonHats(buttonsAorBHat);
 				buttonBHandled = true;
 			}
+			buttonPresses++;
 		}
 	}
 
@@ -361,6 +367,8 @@ void checkButtons() {
 		if (now < buttonADownTime) buttonADownTime = now; // clock wrap
 		if ((now - buttonADownTime) >= BUTTON_CLICK_TIME) { // button A held for click time
 			startButtonHats(buttonAHat);
+			buttonPresses++;
+			//startButtonHats(buttonsAorBHat);
 			buttonAHandled = true;
 		}
 	}
@@ -368,22 +376,107 @@ void checkButtons() {
 		if (now < buttonBDownTime) buttonBDownTime = now; // clock wrap
 		if ((now - buttonBDownTime) >= BUTTON_CLICK_TIME) { // button B held for click time
 			startButtonHats(buttonBHat);
+			buttonPresses++;
+			//startButtonHats(buttonsAorBHat);
 			buttonBHandled = true;
 		}
 	}
 
 	if (buttonADownTime && !buttonAIsDown) { // button A down -> up
-		if (!buttonAHandled) startButtonHats(buttonAHat); // fast click (< BUTTON_CLICK_TIME)
+		if (!buttonAHandled) startButtonHats(buttonAHat); // fast click (< BUTTON_CLICK_TIME) - intentionally not including the button A or B hat or button presses here because I want kids to press long enough to mean it to activate this block
 		buttonADownTime = 0;
 		buttonAHandled = false;
 	}
 	if (buttonBDownTime && !buttonBIsDown) { // button B down -> up
-		if (!buttonBHandled) startButtonHats(buttonBHat); // fast click (< BUTTON_CLICK_TIME)
+		if (!buttonBHandled) startButtonHats(buttonBHat); // fast click (< BUTTON_CLICK_TIME) - intentionally not including the button A or B hat or button presses here because I want kids to press long enough to mean it to activate this block
 		buttonBDownTime = 0;
 		buttonBHandled = false;
 	}
 }
 
+// Returns the number of buton presses since the last time this was called
+int getButtonPresses()
+{
+	int returnVal;
+	returnVal = buttonPresses;
+	buttonPresses = 0;
+	return returnVal;
+}
+
+// Clap check support
+
+#define CLAP_CHECK_INTERVAL 2500 // microseconds
+#define SOUND_SAMPLES 10 // # of samples we'll take to determine a clap
+#define CLAP_THRESHOLD 100 // loudness of 100 or more will create a clap
+
+static uint32 lastClapCheck = 0;
+static char clapCurrent = false;
+
+int mic_vals[10] = {0,0,0,0,0,0,0,0,0,0}; //Ten most recent mic values
+
+// The results of checkClaps - the current loudness reading, and the number of claps since claps was most recently read
+
+/* Next steps so I don't forget: Make a couple of prim functions, maybe in hatchling or sensor prims that report loudness and claps, 
+   then check if they work in MicroBlocks by creating a tiny library that reports those two figures */
+
+int loudness = 0;
+int claps = 0; // Still need a primitive to get this information off the board
+
+void checkClaps()
+{
+
+	uint32 now = microsecs();
+	if (now < lastClapCheck) lastClapCheck = 0; // clock wrap
+	if ((now - lastClapCheck) < CLAP_CHECK_INTERVAL) return; // not time yet - only check claps every 2500 us
+	lastClapCheck = now;
+
+	// Filter to hold the 10 most recent microphone values
+	for(uint8 i = 1; i < SOUND_SAMPLES; i++)
+	{
+		mic_vals[i-1] = mic_vals[i];
+	}
+	mic_vals[SOUND_SAMPLES-1] = readAnalogMicrophone();
+
+	int lowsound = 10000;
+	int highsound = -10000;
+
+	for(uint8 i = 0; i < SOUND_SAMPLES; i++)
+	{
+		if(mic_vals[i] < lowsound)
+			lowsound = mic_vals[i];
+		if(mic_vals[i] > highsound)
+			highsound = mic_vals[i];	
+	}
+	loudness = highsound-lowsound;
+
+	if(loudness > CLAP_THRESHOLD && clapCurrent == false)
+	{
+		claps++;
+		clapCurrent = true; // We use clapCurrent to make sure we only count each clap once
+	}
+
+	if(loudness <= CLAP_THRESHOLD) 
+	{
+		clapCurrent = false;
+	}
+	
+
+}
+
+// Returns the loudness value - sort of a filtered microphone.
+int getLoudness()
+{
+	return loudness;
+}
+
+// Returns the number of claps since the last time this was called
+int getClaps()
+{
+	int returnVal;
+	returnVal = claps;
+	claps = 0;
+	return returnVal;
+}
 // Store Ops
 
 static void storeCodeChunk(uint8 chunkIndex, int byteCount, uint8 *data) {

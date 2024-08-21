@@ -12,10 +12,6 @@ void setup() {
 	hardwareInit();
 	memInit();
 	primsInit();
-	outputString((char *) "Welcome to Hatchling MicroBlocks!"); // Change and you'll see in the browser console
-	restoreScripts();
-	if (BLE_isEnabled()) BLE_start();
-	startAll(); // Starts all hat blocks
 
   // Makes sure the reset pin stays low (briefly high to allow a reset)
   pinMode(2, OUTPUT);
@@ -25,6 +21,15 @@ void setup() {
   delayMicroseconds(50000);
   delayMicroseconds(50000);
   digitalWrite(2, LOW);
+
+	outputString((char *) "Welcome to Hatchling MicroBlocks!"); // Change and you'll see in the browser console
+	restoreScripts();
+	if (BLE_isEnabled()) BLE_start();
+	startAll(); // Starts all hat blocks
+
+  // Turn on the microphone
+  pinMode(28, OUTPUT);
+  digitalWrite(28, HIGH);
 
   // May need to add 1850 ms delay for bootloader here if we put the SAMD bootloader on the board
 }

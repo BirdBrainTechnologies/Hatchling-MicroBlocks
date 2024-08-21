@@ -1774,7 +1774,9 @@ void vmLoop() {
 		}
 
 		updateMicrobitDisplay();
-		checkButtons();
+		checkButtons(); // Checks if a button is pressed every 10 ms, starts when button hat blocks if appropriate
+		checkClaps(); // Checks if there has been a clap every 2.5 ms, starts hat blocks if appropriate
+
       // Could add check accelerometer for shake, checking for claps, etc here - TOM NOTE
 		processMessage();
       // Check if it is time to get a sensor reading from Hatchling to check port states, attached sensor values

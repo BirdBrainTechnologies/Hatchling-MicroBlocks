@@ -48,7 +48,10 @@ typedef enum {
 	broadcastHat = 6,
 	buttonAHat = 7,
 	buttonBHat = 8,
-	buttonsAandBHat = 9, // To add more chunks edit this - like whenClappedHat = 10, then need to add events and code elsewhere in the VM. Or use generic whenCondition block
+	buttonsAandBHat = 9, 
+	//buttonsAorBHat = 10, // Change to support a hat where either button is pressed
+	//whenClappedHat = 11, // Change to add a whenClappedHat - Not yet implemented
+	// To add more chunks edit this - then need to add events and code elsewhere in the VM - check the way buttons are implemented for an example. Or use generic whenCondition block
 } ChunkType_t;
 
 typedef struct {
@@ -278,6 +281,10 @@ void setPinMode(int pin, int newMode);
 void turnOffPins();
 void updateMicrobitDisplay();
 void checkButtons();
+void checkClaps();
+int getLoudness();
+int getClaps();
+int getButtonPresses();
 void resetRadio();
 void stopPWM();
 void stopServos();

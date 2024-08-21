@@ -857,6 +857,7 @@ static OBJ primMicrophone(int argCount, OBJ *args) {
 	return int2obj(result);
 }
 
+
 static PrimEntry entries[] = {
 	{"acceleration", primAcceleration},
 	{"temperature", primMBTemp},
