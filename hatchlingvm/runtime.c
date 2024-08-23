@@ -324,7 +324,7 @@ void checkButtons() {
 	if ((now - lastCheck) < BUTTON_CHECK_INTERVAL) return; // not time yet
 	lastCheck = now;
 
-	if (!mustPollButtons()) return; // no need to poll buttons (allows button pins to be used for output)
+	//if (!mustPollButtons()) return; // no need to poll buttons (allows button pins to be used for output)
 
 	now = millisecs(); // use milliseconds for button timeouts
 	if (!now) now = 1; // the value is reserved to mean button is not down
@@ -429,7 +429,6 @@ void checkClaps()
 	if (now < lastClapCheck) lastClapCheck = 0; // clock wrap
 	if ((now - lastClapCheck) < CLAP_CHECK_INTERVAL) return; // not time yet - only check claps every 2500 us
 	lastClapCheck = now;
-
 	// Filter to hold the 10 most recent microphone values
 	for(uint8 i = 1; i < SOUND_SAMPLES; i++)
 	{

@@ -1775,7 +1775,8 @@ void vmLoop() {
 
 		updateMicrobitDisplay();
 		checkButtons(); // Checks if a button is pressed every 10 ms, starts when button hat blocks if appropriate
-		checkClaps(); // Checks if there has been a clap every 2.5 ms, starts hat blocks if appropriate
+		
+		checkClaps(); // Checks if there has been a clap every 2.5 ms, starts hat blocks if appropriate, this function takes around 25 us
 
       // Could add check accelerometer for shake, checking for claps, etc here - TOM NOTE
 		processMessage();
