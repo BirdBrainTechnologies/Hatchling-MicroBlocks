@@ -38,6 +38,7 @@ Task tasks[MAX_TASKS];
 int taskCount = 0;
 
 OBJ vars[MAX_VARS];
+OBJ lvars[MAX_LISTS];
 
 // For Hatchling - set a fancy name array to flash in the vmLoop when no BLE connection has occurred
 //char fancyName[8] = {'E',' ','R',' ','R',' ',' ',' '};
@@ -837,7 +838,11 @@ static void runTask(Task *task) {
 		DISPATCH();
 	pushVar_op:
 		STACK_CHECK(1);
-		*sp++ = vars[arg];
+		if (arg >= MAX_VARS) {
+			*sp++ = lvars[arg - MAX_VARS];
+		} else {
+			*sp++ = vars[arg];
+		}
 		DISPATCH();
 	storeVar_op:
 		vars[arg] = *--sp;

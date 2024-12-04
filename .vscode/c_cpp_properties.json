@@ -1,0 +1,59 @@
+//
+// !!! WARNING !!! AUTO-GENERATED FILE!
+// PLEASE DO NOT MODIFY IT AND USE "platformio.ini":
+// https://docs.platformio.org/page/projectconf/section_env_build.html#build-flags
+//
+{
+    "configurations": [
+        {
+            "name": "PlatformIO",
+            "includePath": [
+                "/Users/krissie/Documents/BirdBrain/Hatchling-MicroBlocks/hatchlingvm",
+                "/Users/krissie/.platformio/packages/framework-arduinonordicnrf5/libraries/Wire",
+                "/Users/krissie/.platformio/packages/framework-arduinonordicnrf5/libraries/SPI",
+                "/Users/krissie/.platformio/packages/framework-arduinonordicnrf5/cores/nRF5",
+                "/Users/krissie/.platformio/packages/framework-arduinonordicnrf5/cores/nRF5/SDK/components/drivers_nrf/delay",
+                "/Users/krissie/.platformio/packages/framework-arduinonordicnrf5/cores/nRF5/SDK/components/device",
+                "/Users/krissie/.platformio/packages/framework-arduinonordicnrf5/cores/nRF5/SDK/components/toolchain",
+                "/Users/krissie/.platformio/packages/framework-arduinonordicnrf5/cores/nRF5/SDK/components/toolchain/CMSIS/Include",
+                "/Users/krissie/.platformio/packages/framework-arduinonordicnrf5/variants/BBCmicrobit",
+                ""
+            ],
+            "browse": {
+                "limitSymbolsToIncludedHeaders": true,
+                "path": [
+                    "/Users/krissie/Documents/BirdBrain/Hatchling-MicroBlocks/hatchlingvm",
+                    "/Users/krissie/.platformio/packages/framework-arduinonordicnrf5/libraries/Wire",
+                    "/Users/krissie/.platformio/packages/framework-arduinonordicnrf5/libraries/SPI",
+                    "/Users/krissie/.platformio/packages/framework-arduinonordicnrf5/cores/nRF5",
+                    "/Users/krissie/.platformio/packages/framework-arduinonordicnrf5/cores/nRF5/SDK/components/drivers_nrf/delay",
+                    "/Users/krissie/.platformio/packages/framework-arduinonordicnrf5/cores/nRF5/SDK/components/device",
+                    "/Users/krissie/.platformio/packages/framework-arduinonordicnrf5/cores/nRF5/SDK/components/toolchain",
+                    "/Users/krissie/.platformio/packages/framework-arduinonordicnrf5/cores/nRF5/SDK/components/toolchain/CMSIS/Include",
+                    "/Users/krissie/.platformio/packages/framework-arduinonordicnrf5/variants/BBCmicrobit",
+                    ""
+                ]
+            },
+            "defines": [
+                "PLATFORMIO=60116",
+                "ARDUINO_BBC_MICROBIT",
+                "USE_LFRC",
+                "ARDUINO=10805",
+                "F_CPU=16000000L",
+                "ARDUINO_ARCH_NRF5",
+                "NRF5",
+                "NRF51",
+                ""
+            ],
+            "cStandard": "gnu11",
+            "cppStandard": "gnu++11",
+            "compilerPath": "/Users/krissie/.platformio/packages/toolchain-gccarmnoneeabi@1.70201.0/bin/arm-none-eabi-gcc",
+            "compilerArgs": [
+                "-mthumb",
+                "-mcpu=cortex-m0",
+                ""
+            ]
+        }
+    ],
+    "version": 4
+}

@@ -793,6 +793,8 @@ void sendTaskReturnValue(uint8 chunkIndex, OBJ returnValue) {
 static void sendVariableValue(int varID) {
 	if ((varID >= 0) && (varID < MAX_VARS)) {
 		sendValueMessage(varValueMsg, varID, vars[varID]);
+	} else if ((varID >= MAX_VARS && (varID < (MAX_LISTS + MAX_VARS)))) {
+		sendValueMessage(varValueMsg, varID, lvars[varID - MAX_VARS]);
 	}
 }
 

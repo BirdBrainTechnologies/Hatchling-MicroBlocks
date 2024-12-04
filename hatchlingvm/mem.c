@@ -81,6 +81,9 @@ void memClear() {
 	objstore[0] = (OBJ) 0; // forwarding word
 	objstore[1] = (OBJ) HEADER(FREE_CHUNK, OBJSTORE_WORDS - 2); // free chunk
 	freeChunk = (OBJ) &objstore[1];
+
+	//Empty all lists
+	for (int i = 0; i < MAX_LISTS; i++) lvars[i] = newObj(ListType, 2, falseObj);
 }
 
 int wordsFree() {
@@ -296,6 +299,7 @@ static inline OBJ forward(OBJ obj) {
 static void forwardRoots(void) {
 	// forward global variables
 	for (int i = 0; i < MAX_VARS; i++) vars[i] = forward(vars[i]);
+	for (int i = 0; i < MAX_LISTS; i++) lvars[i] = forward(lvars[i]);
 	lastBroadcast = forward(lastBroadcast);
 
 	if (tempGCRoot) tempGCRoot = forward(tempGCRoot);
@@ -383,6 +387,7 @@ void mark(OBJ root) {
 static void markRoots(void) {
 	// mark global variables
 	for (int i = 0; i < MAX_VARS; i++) mark(vars[i]);
+	for (int i = 0; i < MAX_LISTS; i++) mark(lvars[i]);
 	mark(lastBroadcast);
 
 	// mark temporary object used during object resizing
