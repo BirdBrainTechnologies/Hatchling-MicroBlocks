@@ -247,7 +247,7 @@ static OBJ primHatchlingPlayNote(int argCount, OBJ *args) {
 	int midiNote = evalInt(args[0]);
 	if ((midiNote < 12) || (midiNote > 143)) return falseObj;
 
-	int octave = midiNote/12-5; // sets the octave from 0 to 12
+	int octave = midiNote/12-5; // sets the possible octaves from -4 to 6, with 0 being the baseline octave
 
 	uint32 frequency = toneFrequencies[midiNote%12]; // set the base frequency, which needs to be adjusted by the octave
 
@@ -262,13 +262,13 @@ static OBJ primHatchlingPlayNote(int argCount, OBJ *args) {
 	{
 		for(int count = 0; count > octave; count--)
 		{
-			frequency = frequency/2; //halve by however many octaves we have
+			frequency = frequency/2; //halve by however many octaves we have below 0
 		}
 	}
 	// Reduce by 1000 to get the actual frequency in hertz
 	frequency = frequency/1000;
 
-	int beats = evalInt(args[1]);
+	int beats = evalInt(args[1]); // Sent by the interface in millibeats - so 500 = 0.5 beats
 	int currTempo = getTempo();
 	int durationMSecs = beats*60/currTempo;
 	if (durationMSecs < 10) return falseObj; // too short
