@@ -270,7 +270,7 @@ static OBJ primHatchlingPlayNote(int argCount, OBJ *args) {
 
 	int beats = evalInt(args[1]);
 	int currTempo = getTempo();
-	int durationMSecs = beats*1000*60/currTempo;
+	int durationMSecs = beats*60/currTempo;
 	if (durationMSecs < 10) return falseObj; // too short
 
 	// start playing tone
