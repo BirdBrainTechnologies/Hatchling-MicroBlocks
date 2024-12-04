@@ -236,19 +236,45 @@ static int portActive[6] = {false, false, false, false, false, false};
 static int portType[6] = {0, 0, 0, 0, 0, 0};
 static uint32 portEndTime[6] = {0, 0, 0, 0, 0, 0}; // microseconds
 
+// baseline frequencies in milliHertz for the base octave
+static uint32 toneFrequencies[12] = {261626,277183,293665,311127,329628,349228,369994,391995,415305,440000,466164,493883};
+
 static OBJ primHatchlingPlayNote(int argCount, OBJ *args) {
-	// Args: pitch, duration in milliseconds
+	// Args: midi note, beats
 	// Use built-in speaker pin for output.
 	// Sets hatchlingNoteEndTime and expects interpreter loop to turn it off.
 
-	int pitch = evalInt(args[0]);
-	if ((pitch < 10) || (pitch > 20000)) return falseObj;
+	int midiNote = evalInt(args[0]);
+	if ((midiNote < 12) || (midiNote > 143)) return falseObj;
 
-	int durationMSecs = evalInt(args[1]);
+	int octave = midiNote/12-5; // sets the octave from 0 to 12
+
+	uint32 frequency = toneFrequencies[midiNote%12]; // set the base frequency, which needs to be adjusted by the octave
+
+	if(octave > 0)
+	{
+		for(int count = 0; count < octave; count++)
+		{
+			frequency = frequency*2; //double by however many octaves we have
+		}
+	}
+	else if(octave < 0)
+	{
+		for(int count = 0; count > octave; count--)
+		{
+			frequency = frequency/2; //halve by however many octaves we have
+		}
+	}
+	// Reduce by 1000 to get the actual frequency in hertz
+	frequency = frequency/1000;
+
+	int beats = evalInt(args[1]);
+	int currTempo = getTempo();
+	int durationMSecs = beats*1000*60/currTempo;
 	if (durationMSecs < 10) return falseObj; // too short
 
 	// start playing tone
-	OBJ toneArgs[] = { int2obj(-1), int2obj(pitch) };
+	OBJ toneArgs[] = { int2obj(-1), int2obj(frequency) };
 	primPlayTone(2, toneArgs);
 
 	hatchlingNoteIsPlaying = true;
@@ -1599,43 +1625,7 @@ void vmLoop() {
       // Uptime with an empty loop is 5.2 us
       // Uptime with a program varies from 5 us to 25 us
 
-	  
-		// Check if we're connected and if not, display our fancy initials to the display
-		/*isBLEConnect = isBLEConnected();
-		if(!isBLEConnect && (millis() - timeToChange) > displayTime && !advertisingTimeOver)
-		{
-			printCharDisplay(fancyName[initialCount]); // In theory, lower case 'c'
-			initialCount++;
-
-			// Make the display show the character for 0.7s with a 0.3s delay
-			if(displayTime == 700)
-				displayTime = 100;
-			else
-				displayTime = 700;
-			if(initialCount > 7)
-			{
-				initialCount = 0;
-			}
-
-			timeToChange = millis();
-				
-			if(timeToChange - startTime > 2500)
-				showLEDCode(); // Show the LED code after the device has been on for 2.5 seconds
-
-			if(timeToChange - startTime > timeOut)
-				advertisingTimeOver = true;
-		}
-		if(isBLEConnect && !prevBLEConnect)
-		{
-			// clear the micro:bit display - this is only when you have just connected
-			setMBDisplay(0);
-			advertisingTimeOver = true;
-		//	initialCount = 0; // Reset the counter for the next time you connect
-		//	displayTime = 100;
-		}
-		prevBLEConnect = isBLEConnect;
-*/
-		// Send our sensor data every 500 ms if we're connected over BLE
+		// Send our sensor data/port states every 500 ms if we're connected over BLE
 		if(millis()-timeToTransmit > 500 && isBLEConnected())
 		{
 			//queueByte(252);
@@ -1647,17 +1637,16 @@ void vmLoop() {
 			// Send port states and other HL sensors if connected over Bluetooth
 			sendBroadcastToIDE(hlData, 8); 
 			timeToTransmit = millis();
-			//sendData(); // Sends all of the bytes we just collected in one packet, even though it is not 20 bytes
 		}
-		// In this case, set up the notes to play the connection sound
+		// In this case, we have just connected, so set up the notes to play the connection sound and reset the clap and button counters
 		if(isBLEConnected() && isBLEConnect == false)
 		{
 			isBLEConnect=true;
 			soundTime = millis(); 
-			noteState = 0;
-			// Best not to start the tone until connection is settled - maybe 200 ms later
-			//tone_args[1] = int2obj(329);
-			//primPlayTone(2, tone_args);
+			noteState = 0;			
+			// This effectively resets the clap and button presses when we connect
+			getClaps();
+			getButtonPresses();
 		}
 		// In this case, set up the notes to play the disconnection sound
 		else if(!isBLEConnected() && isBLEConnect == true)

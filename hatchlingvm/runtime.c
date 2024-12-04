@@ -420,7 +420,8 @@ int mic_vals[10] = {0,0,0,0,0,0,0,0,0,0}; //Ten most recent mic values
    then check if they work in MicroBlocks by creating a tiny library that reports those two figures */
 
 int loudness = 0;
-int claps = 0; // Still need a primitive to get this information off the board
+int claps = 0;
+int tempo = 60; // sets the tempo in beats per minute
 
 void checkClaps()
 {
@@ -476,6 +477,19 @@ int getClaps()
 	claps = 0;
 	return returnVal;
 }
+
+// Sets the tempo
+void setTempo(int tempoVal)
+{
+	tempo = tempoVal;
+}
+
+// Gets the current tempo
+int getTempo()
+{
+	return tempo;
+}
+
 // Store Ops
 
 static void storeCodeChunk(uint8 chunkIndex, int byteCount, uint8 *data) {
@@ -1129,6 +1143,8 @@ static void processShortMessage() {
 		stopAllTasks();
 		softReset(false);
 		stopHatchling();
+		getClaps(); // This resets the counters for claps and button presses to 0
+		getButtonPresses();
 		outputString("All tasks stopped");
 		break;
 	case getVarMsg:

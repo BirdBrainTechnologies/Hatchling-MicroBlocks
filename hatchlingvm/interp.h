@@ -286,6 +286,8 @@ void checkButtons();
 void checkClaps();
 int getLoudness();
 int getClaps();
+int getTempo();
+void setTempo(int tempoVal);
 int getButtonPresses();
 void resetRadio();
 void stopPWM();

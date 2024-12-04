@@ -167,6 +167,25 @@ OBJ primFairyLights(int argCount, OBJ *args) {
     return falseObj;
 }
 
+// Function to set the tempo
+OBJ primSetTempo(int argCount, OBJ *args) {
+	if (!isInt(args[0])) { fail(needsIntegerError); return args[0]; }
+ 
+	int value = obj2int(args[0]);
+    // This is the tempo in beats per minute
+	if (value < 20) value = 20;
+	if (value > 2000) value = 2000;
+
+    setTempo(value);
+    return trueObj;
+ }
+
+ // Function to get the tempo
+OBJ primGetTempo(int argCount, OBJ *args) {
+	int result = getTempo();
+	return int2obj(result);
+ }
+
 
 // Function to control attached position servo
 OBJ primPositionServos(int argCount, OBJ *args) {
@@ -674,6 +693,8 @@ void stopHatchling()
 static PrimEntry entries[] = {
 	{"rd", primHatchlingRead},
     {"fl", primFairyLights},
+    {"st", primSetTempo},
+    {"gt", primGetTempo},
     {"psv", primPositionServos},
     {"rsv", primRotationServos},
     {"np", primNeoPixel},
