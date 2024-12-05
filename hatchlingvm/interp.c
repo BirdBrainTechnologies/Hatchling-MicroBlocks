@@ -269,9 +269,20 @@ static OBJ primHatchlingPlayNote(int argCount, OBJ *args) {
 	// Reduce by 1000 to get the actual frequency in hertz
 	frequency = frequency/1000;
 
-	int noteLength = evalInt(args[1]); // Sent by the interface as 1 (1 = full note), 2, 4, 8, 16 (16=sixteenth note) 
+	int noteLength = evalInt(args[1]); // Sent by the interface as 1 (1 = full note), 2, 4, 8, 16 (16=sixteenth note) and 3, 6, 12, 24 are the dotted notes (50% longer) 
 	int currTempo = getTempo();
-	int durationMSecs = 4000*1/noteLength*60/currTempo;
+
+	int durationMSecs; 
+	
+	// Dotted notes are divisible by 3
+	if(noteLength%3 == 0)
+	{
+		durationMSecs=9000*1/noteLength*60/currTempo;  // Converting the duration to be 50% longer and adjusting for the fact that noteLength is also 50% more 
+	}
+	else
+	{
+		durationMSecs=4000*1/noteLength*60/currTempo;
+	}
 	if (durationMSecs < 10) return falseObj; // too short
 
 	// start playing tone, unless this is a rest
