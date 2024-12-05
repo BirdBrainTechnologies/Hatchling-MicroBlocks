@@ -436,21 +436,21 @@ OBJ primPortState(int argCount, OBJ *args) {
 
 
 
-static OBJ primLoudness(int argCount, OBJ *args) {
+OBJ primLoudness(int argCount, OBJ *args) {
 	// Read a measure of ambient loudness of the environment from the microphone.
 
 	int result = getLoudness();
 	return int2obj(result);
 }
 
-static OBJ primClaps(int argCount, OBJ *args) {
+OBJ primClaps(int argCount, OBJ *args) {
 	// Read the number of claps since the last time we read the number of claps
 
 	int result = getClaps();
 	return int2obj(result);
 }
 
-static OBJ primButtons(int argCount, OBJ *args) {
+OBJ primButtons(int argCount, OBJ *args) {
 	// Read the number of button presses since the last time we read the number of button presses
 
 	int result = getButtonPresses();

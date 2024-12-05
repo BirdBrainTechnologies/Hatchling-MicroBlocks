@@ -245,7 +245,8 @@ static OBJ primHatchlingPlayNote(int argCount, OBJ *args) {
 	// Sets hatchlingNoteEndTime and expects interpreter loop to turn it off.
 
 	int midiNote = evalInt(args[0]);
-	if ((midiNote < 12) || (midiNote > 143)) return falseObj;
+
+	if ((midiNote < 24 && midiNote != 0) || (midiNote > 120)) return falseObj;
 
 	int octave = midiNote/12-5; // sets the possible octaves from -4 to 6, with 0 being the baseline octave
 
@@ -268,20 +269,45 @@ static OBJ primHatchlingPlayNote(int argCount, OBJ *args) {
 	// Reduce by 1000 to get the actual frequency in hertz
 	frequency = frequency/1000;
 
-	int beats = evalInt(args[1]); // Sent by the interface in millibeats - so 500 = 0.5 beats
+	int noteLength = evalInt(args[1]); // Sent by the interface as 1 (1 = full note), 2, 4, 8, 16 (16=sixteenth note) 
 	int currTempo = getTempo();
-	int durationMSecs = beats*60/currTempo;
+	int durationMSecs = 4000*1/noteLength*60/currTempo;
+	if (durationMSecs < 10) return falseObj; // too short
+
+	// start playing tone, unless this is a rest
+	if(midiNote != 0)
+	{
+		OBJ toneArgs[] = { int2obj(-1), int2obj(frequency) };
+		primPlayTone(2, toneArgs);
+
+		hatchlingNoteIsPlaying = true;
+		hatchlingNoteEndTime = microsecs() + (1000 * durationMSecs);
+	}
+	taskSleep(durationMSecs);
+	
+	return trueObj;
+}
+
+static OBJ primHatchlingPlayTone(int argCount, OBJ *args) {
+	// Args: frequency, duration in milliseconds
+	// Use built-in speaker pin for output.
+	// Sets hatchlingNoteEndTime and expects interpreter loop to turn it off.
+
+	int freq = evalInt(args[0]);
+	if ((freq < 20) || (freq > 20000)) return falseObj;
+
+	int durationMSecs = evalInt(args[1]);
 	if (durationMSecs < 10) return falseObj; // too short
 
 	// start playing tone
-	OBJ toneArgs[] = { int2obj(-1), int2obj(frequency) };
+	OBJ toneArgs[] = { int2obj(-1), int2obj(freq) };
 	primPlayTone(2, toneArgs);
 
 	hatchlingNoteIsPlaying = true;
 	hatchlingNoteEndTime = microsecs() + (1000 * durationMSecs);
 	taskSleep(durationMSecs);
 
-	return falseObj;
+	return trueObj;
 }
 
 static OBJ primHatchlingServoWithDelay(int argCount, OBJ *args) {
@@ -315,7 +341,7 @@ static OBJ primHatchlingServoWithDelay(int argCount, OBJ *args) {
 		portType[pinNum] = SERVO; // Set the type regardless
 		taskSleep(durationMSecs);
 	}
-	return falseObj;
+	return trueObj;
 }
 
 static OBJ primHatchlingMotorWithDelay(int argCount, OBJ *args) {
@@ -349,7 +375,7 @@ static OBJ primHatchlingMotorWithDelay(int argCount, OBJ *args) {
 		portType[pinNum] = MOTOR; // Set the type regardless
 		taskSleep(durationMSecs);
 	}
-	return falseObj;
+	return trueObj;
 }
 
 static OBJ primHatchlingFairyLightWithDelay(int argCount, OBJ *args) {
@@ -384,7 +410,7 @@ static OBJ primHatchlingFairyLightWithDelay(int argCount, OBJ *args) {
 		portType[pinNum] = FAIRY; // Set the type regardless
 		taskSleep(durationMSecs);
 	}
-	return falseObj;
+	return trueObj;
 }
 
 static OBJ primNeopixelWithDelay(int argCount, OBJ *args) {
@@ -418,7 +444,7 @@ static OBJ primNeopixelWithDelay(int argCount, OBJ *args) {
 		portType[pinNum] = NEOPXL;
 		taskSleep(durationMSecs);
 	}
-	return falseObj;
+	return trueObj;
 }
 
 static OBJ primNeopixelStripWithDelay(int argCount, OBJ *args) {
@@ -802,7 +828,7 @@ static void runTask(Task *task) {
 		&&hatchlingFairyLightWithDelay_op,
 		&&hatchlingNeopixelWithDelay_op,
 		&&hatchlingNeopixelStripWithDelay_op,
-		&&RESERVED_op,
+		&&hatchlingPlayTone_op,
 		&&RESERVED_op,
 		&&RESERVED_op,
 		&&RESERVED_op,
@@ -1485,6 +1511,10 @@ static void runTask(Task *task) {
 		DISPATCH();
 	hatchlingPlayNote_op: // Adding the Hatchling delay-based built-in primitives
 		*(sp - arg) = primHatchlingPlayNote(arg, sp - arg);
+		POP_ARGS_COMMAND();
+		DISPATCH();
+	hatchlingPlayTone_op: 
+		*(sp - arg) = primHatchlingPlayTone(arg, sp - arg);
 		POP_ARGS_COMMAND();
 		DISPATCH();
 	hatchlingServoWithDelay_op:
