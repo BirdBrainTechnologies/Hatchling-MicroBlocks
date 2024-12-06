@@ -5,7 +5,7 @@
 // Copyright 2018 John Maloney, Bernat Romagosa, and Jens Mönig
 
 // interp.c - Simple interpreter based on 32-bit opcodes
-// John Maloney, April 2017
+// John Maloney, April 2017 + modifications by Tom Lauwers, November 2024
 
 #define _DEFAULT_SOURCE // enable usleep() declaration from unistd.h
 #include <Arduino.h> // only for debugging
@@ -229,9 +229,21 @@ OBJ primBoardType() {
 
 // Hatchling Inline Primitives
 
+// Note support
 static int hatchlingNoteIsPlaying = false;
 static uint32 hatchlingNoteEndTime = 0;  // microseconds
 
+// Scroll text support
+static int textDisplaying = false;
+static int charCounter = 0;
+static uint32 nextDisplayTime = 0; // microseconds
+static int textDisplayPos = 5;
+char* textToDisplay;
+static int textLength = 0;
+
+#define DISPLAYTIME 100000  // Time between micro:bit display updates while scrolling (current 100 ms, so each char will take 500 ms to scroll on and another 500 ms to scroll off)
+
+// Port support
 static int portActive[6] = {false, false, false, false, false, false};
 static int portType[6] = {0, 0, 0, 0, 0, 0};
 static uint32 portEndTime[6] = {0, 0, 0, 0, 0, 0}; // microseconds
@@ -492,6 +504,29 @@ static OBJ primNeopixelStripWithDelay(int argCount, OBJ *args) {
 	return falseObj;
 }
 
+static OBJ primHLDisplayText(int argCount, OBJ *args) {
+	
+	charCounter = 0;
+	textDisplayPos = 5;
+
+	textToDisplay = obj2str(args[0]);
+
+	textLength = strlen(textToDisplay);
+
+	OBJ displayArgs[3];
+
+	displayArgs[0] = newStringFromBytes(&textToDisplay[0], 1);
+	OBJ letterShape = primMBShapeForLetter(1, displayArgs);
+
+	displayArgs[0] = letterShape;
+	displayArgs[1] = int2obj(textDisplayPos); // Displays the letter in x = 5, y = 1 position to start scrolling in. 
+	displayArgs[2] = int2obj(1);
+	primMBDrawShape(3,displayArgs);
+	textDisplaying = true;
+	nextDisplayTime = microsecs() + DISPLAYTIME; // Will update every 100ms
+
+	return trueObj;
+}
 // Misc primitives
 
 static OBJ primModulo(int argCount, OBJ *args) {
@@ -840,7 +875,7 @@ static void runTask(Task *task) {
 		&&hatchlingNeopixelWithDelay_op,
 		&&hatchlingNeopixelStripWithDelay_op,
 		&&hatchlingPlayTone_op,
-		&&RESERVED_op,
+		&&hatchlingDisplayText_op,
 		&&RESERVED_op,
 		&&RESERVED_op,
 		&&RESERVED_op,
@@ -1548,6 +1583,10 @@ static void runTask(Task *task) {
 		*(sp - arg) = primNeopixelStripWithDelay(arg, sp - arg);
 		POP_ARGS_COMMAND();
 		DISPATCH();		
+	hatchlingDisplayText_op: 
+		*(sp - arg) = primHLDisplayText(arg, sp - arg);
+		POP_ARGS_COMMAND();
+		DISPATCH();		
 
 	// call a function using the function name and parameter list:
 	callCustomCommand_op:
@@ -1781,6 +1820,8 @@ void vmLoop() {
 			hatchlingNoteIsPlaying = false;
 		}
 		
+		// Need to increment the display to the next character if we are displaying text
+
 		// Turn off any ports that need to be turned off
 		for(int pinNum = 0; pinNum < 6; pinNum++)
 		{
@@ -1805,6 +1846,49 @@ void vmLoop() {
 					default:
 						break;
 				}
+			}
+		}
+
+		// If we're scrolling text, display the next character
+		if(textDisplaying == true && (microsecs() > nextDisplayTime))
+		{
+			OBJ displayArgs[3];
+			// If we've reached the end of the string, stop displaying
+			if(charCounter >= textLength)
+			{
+				textDisplaying = false;
+				primMBDisplayOff(0,displayArgs);
+			}
+			else
+			{
+				textDisplayPos--;
+				
+				if(textDisplayPos == -5)
+				{
+					textDisplayPos = 0;
+					charCounter++;
+				}
+				// Draw the current character exiting the screen
+				displayArgs[0] = newStringFromBytes(&textToDisplay[charCounter], 1);
+				OBJ letterShape = primMBShapeForLetter(1, displayArgs);
+
+				displayArgs[0] = letterShape;
+				displayArgs[1] = int2obj(textDisplayPos); // Displays the letter in x = 0 (or less), y = 1 position to start scrolling out. 
+				displayArgs[2] = int2obj(1);
+				primMBDrawShape(3,displayArgs);
+				// Draw the next character entering the screen - multiple primMBDrawShapes can be called on the display
+				// Only do this if there's a character to display
+				if(charCounter < textLength-1)
+				{
+					displayArgs[0] = newStringFromBytes(&textToDisplay[charCounter+1], 1);
+					letterShape = primMBShapeForLetter(1, displayArgs);
+
+					displayArgs[0] = letterShape;
+					displayArgs[1] = int2obj(textDisplayPos+5); // Displays the letter in x = 5 (or less), y = 1 position to start scrolling it. 
+					displayArgs[2] = int2obj(1);
+					primMBDrawShape(3,displayArgs);
+				}
+				nextDisplayTime = microsecs() + DISPLAYTIME; // Updates every 100ms
 			}
 		}
 
