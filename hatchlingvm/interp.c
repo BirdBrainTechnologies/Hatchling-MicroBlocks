@@ -509,7 +509,23 @@ static OBJ primHLDisplayText(int argCount, OBJ *args) {
 	charCounter = 0;
 	textDisplayPos = 5;
 
-	textToDisplay = obj2str(args[0]);
+	textToDisplay = (char *)malloc(100); // Strings up to 100 bytes are okay
+
+	if(textToDisplay == NULL)
+	{
+		outputString("Scroll text memory allocation failed");
+		return falseObj;
+	}
+
+	if (isInt(args[0]))
+	{
+		long int numberToDisplay = obj2int(args[0]); // Numbers from -2^31 to 2^31-1
+		sprintf(textToDisplay, "%ld", numberToDisplay); // Turn the number into a string
+	}
+	else
+	{
+		textToDisplay = obj2str(args[0]);
+	}
 
 	textLength = strlen(textToDisplay);
 
@@ -1856,6 +1872,7 @@ void vmLoop() {
 			// If we've reached the end of the string, stop displaying
 			if(charCounter >= textLength)
 			{
+				free(textToDisplay); // Free the memory used by the scrolling text
 				textDisplaying = false;
 				primMBDisplayOff(0,displayArgs);
 			}
