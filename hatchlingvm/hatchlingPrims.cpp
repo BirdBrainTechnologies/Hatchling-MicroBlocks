@@ -104,6 +104,10 @@ void getHatchlingData(uint8 *hlData)
     for(i= 1; i < GP_PORT_TOTAL+1; i++)
     {
         hlData[i] = GP_ID_vals[i-1];
+
+        // Temporary hack to control neopixel strips from Hatchling app
+        if(hlData[i] == 10)
+            hlData[i] = 9;
     }  
     hlData[7] = hatchlingSPISensors[20];
 }
@@ -201,8 +205,8 @@ OBJ primPositionServos(int argCount, OBJ *args) {
     {
         return args[0];
     }
-	int value = obj2int(args[1]);
-	if (value < 0) value = 0;
+	int value = obj2int(args[1])+2; // Adjust it because to send a 0 or 1 = turning it off
+
 	if (value > 255) value = 255;
 
     // Only do the rest if you have a servo attached on that port
@@ -238,17 +242,18 @@ OBJ primRotationServos(int argCount, OBJ *args) {
 	if (value < -100) value = -100;
 	if (value > 100) value = 100;
 
+
     // Only do the rest if you have a servo attached on that port
     if(GP_ID_vals[pinNum] > 0 && GP_ID_vals[pinNum] < 7) 
     {
         // Convert value to something useful for rotation servos
-        if(value == 0)
+        if(value < 5 && value > -5) // create a dead zone
         { 
             value = 0;
         }
         else
         {
-            value = value/3 + 90;
+            value = value/3 + 91; // 91 is the midpoint of our servo command - need to double check this
         }
         // Set the appropriate part of the command 
         PortValuesCommand[pinNum*3 + 1] = 0;
@@ -298,6 +303,54 @@ OBJ primNeoPixel(int argCount, OBJ *args) {
         setPortsViaSPI();
 	    return trueObj;
     }
+
+    
+    // Only do the rest if you have a neopixel strip attached on that port
+    if(GP_ID_vals[pinNum] == 10) 
+    {
+        // Set the first two bytes of the array
+        PixelStripCommand[pinNum][0] = HATCHLING_SET_EXTERNAL_PXL;
+        PixelStripCommand[pinNum][1] = pinNum;       
+
+        // Set all LEDs for now    
+        for(uint8 i = 0; i < 4; i++)
+        {
+            PixelStripCommand[pinNum][i*3+2] = redVal;
+            PixelStripCommand[pinNum][i*3+3] = greenVal;
+            PixelStripCommand[pinNum][i*3+4] = blueVal;
+        }
+        
+        // Else we set the LED at the position only
+        /*else
+        {
+            int LEDnum = obj2int(args[1])-1; // Converting from 1-4 to 0-3
+            if(LEDnum >= 0 && LEDnum <= 3)
+            {
+                PixelStripCommand[pinNum][LEDnum*3+2] = redLedValue;
+                PixelStripCommand[pinNum][LEDnum*3+3] = greenLedValue;
+                PixelStripCommand[pinNum][LEDnum*3+4] = blueLedValue;
+            }
+            // If it's not between 1 and 4 we return the value as an error
+            else
+            {
+                return args[1];
+            }
+        }*/
+        // Set the neopixel strip
+        pinMode(16, OUTPUT);
+        digitalWrite(16, LOW);
+
+        initSPI(); // Does begin transaction in there
+        for (int i = 0; i < SPICMDLENGTH; i++) {
+            SPI.transfer(PixelStripCommand[pinNum][i]);
+        }
+        SPI.endTransaction();
+            
+        digitalWrite(16, HIGH);
+        delayMicroseconds(SPI_DELAY); //Give Hatchling time to execute an SPI command 
+	    return trueObj;
+    }
+
     return falseObj;
 }
 
@@ -563,11 +616,11 @@ void readHatchlingSensors() {
                 {
                     setPortCommands[i+1] = NEOPXL_SINGLE;
                 }
-                else if(GP_ID_vals[i] == 10)
+                else if((GP_ID_vals[i] == 10) || (GP_ID_vals[i] == 11))
                 {
                     setPortCommands[i+1] = NEOPXL_STRIP;
                 }
-                else if((GP_ID_vals[i] > 10) && (GP_ID_vals[i] < 22))
+                else if((GP_ID_vals[i] > 11) && (GP_ID_vals[i] < 22))
                 {
                     setPortCommands[i+1] = ANALOG_SENSOR;
                 }
