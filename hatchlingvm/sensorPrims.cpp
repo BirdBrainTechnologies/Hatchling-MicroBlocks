@@ -630,9 +630,40 @@ OBJ primSetAccelerometerRange(int argCount, OBJ *args) {
 }
 
 OBJ primMBTemp(int argCount, OBJ *args) { return int2obj(readTemperature()); }
+
+// This code was changed for Hatchling to map X, Y, Z to Hatchling controller instead of standalone micro:bit
+/* Old code
 OBJ primMBTiltX(int argCount, OBJ *args) { return int2obj(readAcceleration(1)); }
 OBJ primMBTiltY(int argCount, OBJ *args) { return int2obj(readAcceleration(3)); }
-OBJ primMBTiltZ(int argCount, OBJ *args) { return int2obj(readAcceleration(5)); }
+OBJ primMBTiltZ(int argCount, OBJ *args) { return int2obj(readAcceleration(5)); } */
+
+// X-axis remains the same
+OBJ primMBTiltX(int argCount, OBJ *args) { return int2obj(readAcceleration(1)); }
+
+// Y-axis changes significantly 
+OBJ primMBTiltY(int argCount, OBJ *args) { 
+	int value;
+	int valueY;
+	int valueZ;
+	valueY = readAcceleration(3);
+	valueZ = readAcceleration(5);
+
+	// Do some math
+	value = valueY/2-valueZ*866/1000; // Hatchling micro:bit is at a 60 degree angle, so we adjust by cos and sin of 60 (0.5, sqrt(3)/2)
+
+	return int2obj(value); }
+
+// Z-axis changes significantly
+OBJ primMBTiltZ(int argCount, OBJ *args) { 
+	int value;
+	int valueY;
+	int valueZ;
+	valueY = readAcceleration(3);
+	valueZ = readAcceleration(5);
+
+	// Do some math
+	value = valueY*866/1000+valueZ/2; // Hatchling micro:bit is at a 60 degree angle, so we adjust by sin and cos of 60 (sqrt(3)/2, 0.5)
+	return int2obj(value); }
 
 // Magnetometer
 
