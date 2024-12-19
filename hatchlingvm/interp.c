@@ -540,6 +540,9 @@ static OBJ primHLDisplayText(int argCount, OBJ *args) {
 	primMBDrawShape(3,displayArgs);
 	textDisplaying = true;
 	nextDisplayTime = microsecs() + DISPLAYTIME; // Will update every 100ms
+	// Total time in milliseconds that the text will display
+    int timeToSleep = 400 + 500*textLength; // First char takes 400 ms to fully appear, and then each char takes another 500 ms to traverse the screen
+	taskSleep(timeToSleep);
 
 	return trueObj;
 }
