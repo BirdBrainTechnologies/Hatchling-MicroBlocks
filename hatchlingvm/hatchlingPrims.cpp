@@ -246,15 +246,26 @@ OBJ primRotationServos(int argCount, OBJ *args) {
     // Only do the rest if you have a servo attached on that port
     if(GP_ID_vals[pinNum] > 0 && GP_ID_vals[pinNum] < 7) 
     {
+        // Convert value to something useful for motors. 116 and 64 are where the motor starts moving
+        if(value > 0)
+        {
+            value = 116 + value*59/100; //Basically set the range to 5 to 175 to avoid sending a power off command (0, 1, or 2)
+
+        }
+        else if(value < 0)
+        {
+            value = 64 + value*59/100; //Basically set the range to 5 to 175 to avoid sending a power off command (0, 1, or 2)    
+        }        
+
         // Convert value to something useful for rotation servos
-        if(value < 5 && value > -5) // create a dead zone
+        /*if(value < 5 && value > -5) // create a dead zone
         { 
             value = 0;
         }
         else
         {
-            value = value/3 + 91; // 91 is the midpoint of our servo command - need to double check this
-        }
+            value = value/3 + 91; // 91 is the midpoint of our servo command - need to double check this - this is the code for rotation servos
+        }*/
         // Set the appropriate part of the command 
         PortValuesCommand[pinNum*3 + 1] = 0;
         PortValuesCommand[pinNum*3 + 2] = 0;
