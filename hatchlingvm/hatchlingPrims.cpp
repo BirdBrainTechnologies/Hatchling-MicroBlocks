@@ -481,6 +481,47 @@ OBJ primDistanceSensor(int argCount, OBJ *args) {
     }
     return int2obj(0);//falseObj;
 }
+
+OBJ primLightSensor(int argCount, OBJ *args) {
+
+    if (!IS_TYPE(args[0], StringType)) return fail(needsStringError);
+    int ch = obj2str(args[0])[0];
+    int pinNum = -1; // default value: invalid port
+    if (('A' <= ch) && (ch <= 'F')) pinNum = ch - 'A';
+    if (('a' <= ch) && (ch <= 'f')) pinNum = ch - 'a';
+
+	if (pinNum == -1)
+    {
+        return args[0];
+    }
+    // Return a value only if we have a distance sensor attached
+    if(GP_ID_vals[pinNum] == 20) 
+    {	
+        return int2obj(GPSensorValues[pinNum]);
+    }
+    return int2obj(0);//falseObj;
+}
+
+OBJ primBigButton(int argCount, OBJ *args) {
+
+    if (!IS_TYPE(args[0], StringType)) return fail(needsStringError);
+    int ch = obj2str(args[0])[0];
+    int pinNum = -1; // default value: invalid port
+    if (('A' <= ch) && (ch <= 'F')) pinNum = ch - 'A';
+    if (('a' <= ch) && (ch <= 'f')) pinNum = ch - 'a';
+
+	if (pinNum == -1)
+    {
+        return args[0];
+    }
+    // Return a value only if we have a distance sensor attached
+    if(GP_ID_vals[pinNum] == 17) 
+    {	
+        return int2obj(GPSensorValues[pinNum]);
+    }
+    return int2obj(0);//falseObj;
+}
+
 // This is just for debugging for now
 OBJ primPortState(int argCount, OBJ *args) {
 
@@ -690,51 +731,6 @@ void readHatchlingSensors() {
     }
 }
 
-// Sets hatchling LEDs to a color code based on mac address
-/*void showLEDCode()
-{
-    ble_gap_addr_t mac;
-    uint8_t HatchlingOnBoardLEDs[SPICMDLENGTH] = {HATCHLING_SET_ONBOARD_LEDS, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};  
-    uint8_t mac_address_hex_vals[6];
-    uint8_t i;
-    sd_ble_gap_addr_get(&mac);
-
-    // First get the 4 bit hex vals of the mac address
-    mac_address_hex_vals[0] = mac.addr[2]&0x0F;
-    mac_address_hex_vals[1] = (mac.addr[1]&0xF0)>>4;
-    mac_address_hex_vals[2] = mac.addr[1]&0x0F;
-    mac_address_hex_vals[3] = (mac.addr[0]&0xF0)>>4;
-    mac_address_hex_vals[4] = mac.addr[0]&0x0F;
-
-    // We have six LEDs, so let's derive the sixth LED color from the sum of the other five
-    mac_address_hex_vals[5] = 0;
-    for(i=0; i<5; i++)
-    {
-        mac_address_hex_vals[5] += mac_address_hex_vals[i];
-    }
-
-    mac_address_hex_vals[5] = mac_address_hex_vals[5]%16;
-
-    for(i=0; i<GP_PORT_TOTAL;i++)
-    {
-        HatchlingOnBoardLEDs[i*3+1] = ledcolors[mac_address_hex_vals[i]/2][0];
-        HatchlingOnBoardLEDs[i*3+2] = ledcolors[mac_address_hex_vals[i]/2][1];
-        HatchlingOnBoardLEDs[i*3+3] = ledcolors[mac_address_hex_vals[i]/2][2];
-    }
-    // Haven't done the Mac address part yet, just makes something colorful
-    //uint8_t LEDCommands[HATCHLING_ONBOARD_LED_CMD_LENGTH] = {0xE0, 0x40, 0x00, 0x00, 0x40, 0x40, 0x00, 0x00, 0x40, 0x00, 0x00, 0x40, 0x40, 0x40, 0x00, 0x40, 0x40, 0x40, 0x40};
-    pinMode(16, OUTPUT);
-    digitalWrite(16, LOW);
-
-    initSPI(); // Does begin transaction in there
-    for (int i = 0; i < SPICMDLENGTH; i++) {
-        SPI.transfer(HatchlingOnBoardLEDs[i]);
-    }
-    SPI.endTransaction();
-        
-    digitalWrite(16, HIGH);
-}*/
-
 // Sends the stop command to the Hatchling - turns off LEDs and servos
 void stopHatchling()
 {
@@ -764,6 +760,8 @@ static PrimEntry entries[] = {
     {"np", primNeoPixel},
     {"nps", primNeoPixelStrip},
     {"ds", primDistanceSensor},
+    {"ls", primLightSensor},
+    {"bb", primBigButton},
     {"ps", primPortState},
 	{"ld", primLoudness},
 	{"cl", primClaps},
