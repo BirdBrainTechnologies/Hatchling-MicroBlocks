@@ -514,12 +514,30 @@ OBJ primBigButton(int argCount, OBJ *args) {
     {
         return args[0];
     }
-    // Return a value only if we have a distance sensor attached
+    // Return a value only if we have a button sensor attached
     if(GP_ID_vals[pinNum] == 17) 
     {	
         return int2obj(GPSensorValues[pinNum]);
     }
     return int2obj(0);//falseObj;
+}
+
+// Checks all buttons and returns true if any are pressed or have been pressed
+OBJ primAllButtons(int argCount, OBJ *args) {
+    // first check if buttons A or B are being pressed
+    if(primButtonA(NULL) || primButtonB(NULL))
+    {
+        return trueObj;
+    }
+    // Now check if there's a button on any port, and see if it has been pressed
+    for(uint8_t pinNum = 0; pinNum < GP_PORT_TOTAL; pinNum++)
+        if(GP_ID_vals[pinNum] == 17) 
+        {	            
+            if (GPSensorValues[pinNum] < 10) {
+                return trueObj;
+            }
+    }
+    return falseObj;
 }
 
 // This is just for debugging for now
@@ -762,6 +780,7 @@ static PrimEntry entries[] = {
     {"ds", primDistanceSensor},
     {"ls", primLightSensor},
     {"bb", primBigButton},
+    {"ab", primAllButtons},
     {"ps", primPortState},
 	{"ld", primLoudness},
 	{"cl", primClaps},

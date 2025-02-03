@@ -8,6 +8,7 @@ variables paramList
   spec 'r' '[h:ds]' 'Distance Sensor _' 'str' 'A'
   spec 'r' '[h:ls]' 'Light Sensor _' 'str' 'A'
   spec 'r' '[h:bb]' 'Big Button _' 'str' 'A'
+  spec 'r' '[h:ab]' 'All Buttons'
   spec 'r' '[h:ps]' 'Port State _' 'str' 'A'
   spec ' ' '[h:nps]' 'LED Strip port _ position _ R _ G _ B _' 'str auto num num auto' 'A' 'all' 0 0 0
   spec ' ' '[h:np]' 'LED port _ R _ G _ B _' 'str num num num' 'A' 0 0 0
