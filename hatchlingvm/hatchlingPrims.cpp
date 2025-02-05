@@ -106,7 +106,7 @@ void getHatchlingData(uint8 *hlData)
         hlData[i] = GP_ID_vals[i-1];
 
         // Temporary hack to control neopixel strips from Hatchling app
-        if(hlData[i] == 10)
+        if(hlData[i] == 10 || hlData[i] == 11)
             hlData[i] = 9;
     }  
     hlData[7] = hatchlingSPISensors[20];
@@ -317,7 +317,7 @@ OBJ primNeoPixel(int argCount, OBJ *args) {
 
     
     // Only do the rest if you have a neopixel strip attached on that port
-    if(GP_ID_vals[pinNum] == 10) 
+    if(GP_ID_vals[pinNum] == 10 || GP_ID_vals[pinNum] == 11) 
     {
         // Set the first two bytes of the array
         PixelStripCommand[pinNum][0] = HATCHLING_SET_EXTERNAL_PXL;
@@ -383,7 +383,7 @@ OBJ primNeoPixelStrip(int argCount, OBJ *args) {
     }
 
     // Only do the rest if you have a neopixel strip attached on that port
-    if(GP_ID_vals[pinNum] == 10) 
+    if(GP_ID_vals[pinNum] == 10 || GP_ID_vals[pinNum] == 11) 
     {
         // Set the first two bytes of the array
         PixelStripCommand[pinNum][0] = HATCHLING_SET_EXTERNAL_PXL;
@@ -517,9 +517,12 @@ OBJ primBigButton(int argCount, OBJ *args) {
     // Return a value only if we have a button sensor attached
     if(GP_ID_vals[pinNum] == 17) 
     {	
-        return int2obj(GPSensorValues[pinNum]);
+        // Return true if the button is pressed - else you'll default to returning false
+        if(GPSensorValues[pinNum] < 30)
+            return trueObj;
     }
-    return int2obj(0);//falseObj;
+    // Return false if no button or button is not pressed
+    return falseObj;
 }
 
 // Checks all buttons and returns true if any are pressed or have been pressed
