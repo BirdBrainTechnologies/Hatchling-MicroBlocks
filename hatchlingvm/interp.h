@@ -302,6 +302,7 @@ void getHatchlingData(uint8 *hlData);
 //void printCharDisplay(int charToPrint); // Additional function to control display
 void showLEDCode(); // Sets the neopixels to a color code based on Mac Address
 void stopHatchling(); // Turns off attached servos/LEDs
+void turnOffHatchling(); // Powers down the Hatchling
 
 // Primitives
 

@@ -58,6 +58,8 @@ static int spiMode = SPI_MODE0;
 #define SPI_DELAY                                    500                           // Determines how long to wait after an SPI command for the Hatchling to execute on the command. 
                                                                                    // Potential improvement - only do this if two SPI commands are sent immediately one after the other 
 
+#define SENSOR_BUFFER                                5                             // Size of sensor buffer
+
 // Port ID values - basically, what raw analog sensor reading corresponds to what specific component?
 static const uint8_t id_values[TOTAL_POSSIBLE_ACCESSORIES] = {255, 10, 21, 32, 44, 56, 66, 77, 87, 97, 107, 118, 128, 138, 147, 156, 165, 174, 183, 192, 201, 210, 219, 228, 236, 245};
 
@@ -78,9 +80,12 @@ bool Port_lock[6] = {false, false, false, false, false, false}; // If we've iden
 // Since any time you set one port you have to set all ports, create a port values command array that holds the current setting of all ports
 uint8 PortValuesCommand[SPICMDLENGTH] = {HATCHLING_SET_GP_PORTS, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 // Need a different command to control a Neopixel strip, and we need 6 of these to store up to six potential strip states
-uint8 PixelStripCommand[6][SPICMDLENGTH];// = {HATCHLING_SET_EXTERNAL_PXL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+uint8 PixelStripCommand[GP_PORT_TOTAL][SPICMDLENGTH]= {0};// = {HATCHLING_SET_EXTERNAL_PXL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 // Holds the port states that we have passed on to the hatchling
 uint8 setPortCommands[SPICMDLENGTH] = {HATCHLING_SET_PORT_STATES, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+// Buffer of 5 sensor values to 
+uint8 sensorBuffer[GP_PORT_TOTAL][SENSOR_BUFFER] = {0};
 bool sendUpdateCommand = false; // Used to determine if we need to send an port state update via SPI
 bool checkPortSetting = false; // We use this to indicate if we need to check if the ports are set correctly
 uint8 stabilizeCounter = 0;
@@ -93,6 +98,7 @@ static void initSPI() {
 	setPinMode(PIN_SPI_MOSI, OUTPUT);
 	SPI.begin();
 	SPI.beginTransaction(SPISettings(spiSpeed, MSBFIRST, spiMode));
+
 }
 
 void getHatchlingData(uint8 *hlData)
@@ -106,8 +112,8 @@ void getHatchlingData(uint8 *hlData)
         hlData[i] = GP_ID_vals[i-1];
 
         // Temporary hack to control neopixel strips from Hatchling app
-        if(hlData[i] == 10 || hlData[i] == 11)
-            hlData[i] = 9;
+        //if(hlData[i] == 10 || hlData[i] == 11)
+         //   hlData[i] = 9;
     }  
     hlData[7] = hatchlingSPISensors[20];
 }
@@ -387,12 +393,14 @@ OBJ primNeoPixelStrip(int argCount, OBJ *args) {
     {
         // Set the first two bytes of the array
         PixelStripCommand[pinNum][0] = HATCHLING_SET_EXTERNAL_PXL;
-        PixelStripCommand[pinNum][1] = pinNum;       
+        PixelStripCommand[pinNum][1] = pinNum; 
+        // Make sure that the ATSAMD21 firmware doesn't allow the neopixel strip to be set with our next port commands call   
+        PortValuesCommand[pinNum*3 + 3] = 0x01;   
 
-        int redLedValue = obj2int(args[2])*255/100;
+        int redLedValue = obj2int(args[3])*255/100;
         if (redLedValue < 0) redLedValue = 0;
         if (redLedValue > 255) redLedValue = 255;
-        int greenLedValue = obj2int(args[3])*255/100;
+        int greenLedValue = obj2int(args[2])*255/100;
         if (greenLedValue < 0) greenLedValue = 0;
         if (greenLedValue > 255) greenLedValue = 255;
         int blueLedValue = obj2int(args[4])*255/100;
@@ -583,6 +591,36 @@ OBJ primButtons(int argCount, OBJ *args) {
 	return int2obj(result);
 }
 
+// Used for filtering out spurious sensor values
+uint8 getMedianValue(uint8 port, uint8 sensorValue)
+{
+    for (int i = SENSOR_BUFFER - 1; i > 0; i--)
+    {
+        sensorBuffer[port][i] = sensorBuffer[port][i - 1];
+    }
+    sensorBuffer[port][0] = sensorValue;
+    uint8 sortedVals[SENSOR_BUFFER];
+    // Copy into a single array for sorting
+    for(int i = 0; i < SENSOR_BUFFER; i++)
+    {
+        sortedVals[i] = sensorBuffer[port][i];
+    }
+    int min_index;
+    int tempVal;
+    for (int i = 0; i < SENSOR_BUFFER - 1; i++) {
+        // Find the minimum element in unsorted array.
+        min_index = i;
+        for (int j = i + 1; j < SENSOR_BUFFER; j++) {
+            if (sortedVals[j] < sortedVals[min_index])
+                min_index = j;
+        }
+        // Swap the found minimum element with the first element.
+        tempVal = sortedVals[i];
+        sortedVals[i] = sortedVals[min_index];
+        sortedVals[min_index] = tempVal;
+    }
+    return sortedVals[SENSOR_BUFFER/2]; // return the median value
+}
 
 // Gets called from vmLoop approximately once every 5 ms. Initiates a read transaction and then organizes the data in all of the appropriate spots
 void readHatchlingSensors() {
@@ -598,12 +636,14 @@ void readHatchlingSensors() {
 		hatchlingSPISensors[i] = SPI.transfer(0xFF);
     }
 	SPI.endTransaction();
-    
     digitalWrite(16, HIGH);
+    delayMicroseconds(SPI_DELAY); //Give Hatchling time to execute an SPI command  
+
     // Place the sensor values from attached components into one array
     for(int i = 0; i < GP_PORT_TOTAL; i++)
     {
-        GPSensorValues[i] = hatchlingSPISensors[i*2+3];
+        GPSensorValues[i] = getMedianValue(i, hatchlingSPISensors[i*2+3]);
+        //(GPSensorValues[i]*4 + hatchlingSPISensors[i*2+3])/5; // Add an infinite time filter to reduce noise
     }
 
     // Now go through the ID values and filter them, then assign them a component type
@@ -769,8 +809,32 @@ void stopHatchling()
     SPI.endTransaction();
         
     digitalWrite(16, HIGH);
+    delayMicroseconds(SPI_DELAY); //Give Hatchling time to execute an SPI command    
     memset(GP_ID_vals_compare, 31, GP_PORT_TOTAL); // Resetting the port identifiers to force an onboard LED update when we reconnect
 }
+
+// Sends the power down command to the Hatchling - turns off the device - currently we time out after 4 hours
+void turnOffHatchling()
+{
+    uint8_t turnOffCommand[SPICMDLENGTH];
+    
+    memset(turnOffCommand, 0xFF, SPICMDLENGTH);
+    turnOffCommand[0] = HATCHLING_POWEROFF_SAMD;    
+    pinMode(16, OUTPUT);
+    digitalWrite(16, LOW);
+
+    initSPI(); // Does begin transaction in there
+    for (int i = 0; i < SPICMDLENGTH; i++) {
+        SPI.transfer(turnOffCommand[i]);
+        PortValuesCommand[i] = 0; // Reset the port values command
+    }
+    SPI.endTransaction();
+        
+    digitalWrite(16, HIGH);
+    delayMicroseconds(SPI_DELAY); //Give Hatchling time to execute an SPI command    
+}
+
+
 static PrimEntry entries[] = {
 	{"rd", primHatchlingRead},
     {"fl", primFairyLights},

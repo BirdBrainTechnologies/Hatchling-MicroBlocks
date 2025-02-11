@@ -470,9 +470,8 @@ static OBJ primNeopixelWithDelay(int argCount, OBJ *args) {
 	return trueObj;
 }
 
-static OBJ primNeopixelStripWithDelay(int argCount, OBJ *args) {
-	// Args: port, intensity (RGB), duration in milliseconds - sets all LEDs at once
-	// Sets endTime and expects vmLoop to turn it off
+static OBJ primNeopixelStripBuiltIn(int argCount, OBJ *args) {
+	// Args: port, which LED setting (all, or 1, 2, 3, 4), intensity (RGB)
 
     if (!IS_TYPE(args[0], StringType)) return fail(needsStringError);
     int ch = obj2str(args[0])[0];
@@ -482,26 +481,13 @@ static OBJ primNeopixelStripWithDelay(int argCount, OBJ *args) {
 
 	if(pinNum == -1) return falseObj;
 
-	int durationMSecs = evalInt(args[4]);
-	if (durationMSecs > 10000) return falseObj; // too long (10 seconds+)
-
 	// start strip lights
-	OBJ NeopixelStripArgs[] = {args[0], newStringFromBytes((const char *) "all", 3), args[1], args[2], args[3]};
+	OBJ NeopixelStripArgs[] = {args[0], args[1], args[2], args[3], args[4]};
 	primNeoPixelStrip(5, NeopixelStripArgs);
-	// If the duration is very short, then just set the port and do not turn it back off later
-	if(durationMSecs < 10)
-	{
-		portActive[pinNum] = false; // In case it is already true from being set previously. Port Active just means that it needs to be turned off later
-		portType[pinNum] = NEOPXL_STRIP; // Set the type regardless
-	}
-	else
-	{
-		portActive[pinNum] = true;
-		portEndTime[pinNum] = microsecs() + (1000 * durationMSecs);
-		portType[pinNum] = NEOPXL_STRIP;
-		taskSleep(durationMSecs);
-	}
-	return falseObj;
+	portActive[pinNum] = false; // In case it is already true from being set previously. Port Active being true  just means that it needs to be turned off later
+	portType[pinNum] = NEOPXL_STRIP; // Set the type regardless
+	
+	return trueObj;
 }
 
 static OBJ primHLDisplayText(int argCount, OBJ *args) {
@@ -892,7 +878,7 @@ static void runTask(Task *task) {
 		&&hatchlingMotorWithDelay_op,
 		&&hatchlingFairyLightWithDelay_op,
 		&&hatchlingNeopixelWithDelay_op,
-		&&hatchlingNeopixelStripWithDelay_op,
+		&&hatchlingNeopixelStripBuiltIn_op,
 		&&hatchlingPlayTone_op,
 		&&hatchlingDisplayText_op,
 		&&RESERVED_op,
@@ -1598,8 +1584,8 @@ static void runTask(Task *task) {
 		*(sp - arg) = primNeopixelWithDelay(arg, sp - arg);
 		POP_ARGS_COMMAND();
 		DISPATCH();
-	hatchlingNeopixelStripWithDelay_op: 
-		*(sp - arg) = primNeopixelStripWithDelay(arg, sp - arg);
+	hatchlingNeopixelStripBuiltIn_op: 
+		*(sp - arg) = primNeopixelStripBuiltIn(arg, sp - arg);
 		POP_ARGS_COMMAND();
 		DISPATCH();		
 	hatchlingDisplayText_op: 
@@ -1679,12 +1665,14 @@ void vmLoop() {
 	// Run the next runnable task. Wake up any waiting tasks whose wakeup time has arrived.
 
 	int count = 0;
+	int wrapCounter = 0; // Counts the number of clock wraps
 //	int i = 0;
 //	int initialCount = 0;
 	uint8 hlData[8]; // Array to hold Hatchling sensor data and port states
     uint32 timeToSPI = microsecs();
 //	uint32 timeToChange = millis();
 	uint32 timeToTransmit = millis();
+	//uint32 stopTime = timeToTransmit + 30000;
 //	uint32 startTime = millis();
 	int soundTime = 100;
 //	int timeOut = 15000; // The Hatchling will stop displaying its initials and color code after 15 seconds (or earlier if BLE gets connected)
@@ -1718,220 +1706,249 @@ void vmLoop() {
 	while (true) {
 		if (count-- < 0) {
 			// do background VM tasks once every N VM loop cycles
-      // With a single loop that turns on/off the user LED and the LED display every 333 us, I see:
-      // Total loop time (from one high edge to the next high edge) varies between 60 and 150 us
-      // With an empty loop it is 22 us
-      // Uptime with an empty loop is 5.2 us
-      // Uptime with a program varies from 5 us to 25 us
+		// With a single loop that turns on/off the user LED and the LED display every 333 us, I see:
+		// Total loop time (from one high edge to the next high edge) varies between 60 and 150 us
+		// With an empty loop it is 22 us
+		// Uptime with an empty loop is 5.2 us
+		// Uptime with a program varies from 5 us to 25 us
 
-		// Send our sensor data/port states every 500 ms if we're connected over BLE
-		if(millis()-timeToTransmit > 500 && isBLEConnected())
-		{
-			//queueByte(252);
-			getHatchlingData(hlData);
-		/*	for(i = 0; i < 13; i++)
+
+			// Send our sensor data/port states every 500 ms if we're connected over BLE
+			if(millis()-timeToTransmit > 500 && isBLEConnected())
 			{
-				queueByte(hlData[i]);
-			}*/
-			// Send port states and other HL sensors if connected over Bluetooth
-			sendBroadcastToIDE(hlData, 8); 
-			timeToTransmit = millis();
-		}
-		// In this case, we have just connected, so set up the notes to play the connection sound and reset the clap and button counters
-		if(isBLEConnected() && isBLEConnect == false)
-		{
-			isBLEConnect=true;
-			soundTime = millis(); 
-			noteState = 0;			
-			// This effectively resets the clap and button presses when we connect
-			getClaps();
-			getButtonPresses();
-		}
-		// In this case, set up the notes to play the disconnection sound
-		else if(!isBLEConnected() && isBLEConnect == true)
-		{
-			isBLEConnect = false;
-			soundTime = millis(); 
-			noteState = 10;
-			// Play the first note of the disconnection sound
-			tone_args[1] = int2obj(587);
-			primPlayTone(2, tone_args);
-		}
+				//queueByte(252);
+				getHatchlingData(hlData);
+			/*	for(i = 0; i < 13; i++)
+				{
+					queueByte(hlData[i]);
+				}*/
+				// Send port states and other HL sensors if connected over Bluetooth
+				sendBroadcastToIDE(hlData, 8); 
+				timeToTransmit = millis();
+			}
+			// In this case, we have just connected, so set up the notes to play the connection sound and reset the clap and button counters
+			if(isBLEConnected() && isBLEConnect == false)
+			{
+				isBLEConnect=true;
+				soundTime = millis(); 
+				timeToTransmit = millis()-500; // Start sending sensor data upon connection
+				noteState = 0;			
+				// This effectively resets the clap and button presses when we connect
+				getClaps();
+				getButtonPresses();
+			}
+			// In this case, set up the notes to play the disconnection sound
+			else if(!isBLEConnected() && isBLEConnect == true)
+			{
+				isBLEConnect = false;
+				soundTime = millis(); 
+				noteState = 10;
+				// Play the first note of the disconnection sound
+				tone_args[1] = int2obj(587);
+				primPlayTone(2, tone_args);
+			}
 
-		// Play the connection sound
-		if(noteState == 0 && millis()-soundTime > 200)
-		{
-			// Play the next note
-			soundTime = millis();
-			tone_args[1] = int2obj(329);
-			primPlayTone(2, tone_args);
-			noteState++;
-		}
-		else if(noteState == 1 && millis()-soundTime > 100)
-		{
-			// Play the next note
-			soundTime = millis();
-			tone_args[1] = int2obj(523);
-			primPlayTone(2, tone_args);
-			noteState++;
-		}
-		else if(noteState == 2 && millis()-soundTime > 100)
-		{
-			//Play the third note
-			soundTime = millis();
-			tone_args[1] = int2obj(587);
-			primPlayTone(2, tone_args);
-			noteState++;
-		}
-		else if(noteState == 3 && millis()-soundTime > 100)
-		{
-			// Play the next note
-			soundTime = millis();
-			tone_args[1] = int2obj(740);
-			primPlayTone(2, tone_args);
-			noteState++;
-		}
-		else if(noteState == 4 && millis()-soundTime > 100)
-		{
-			//Turn off the buzzer
-			tone_args[1] = int2obj(0);
-			primPlayTone(2, tone_args);
-			noteState=255;
-		}
+			// Play the connection sound
+			if(noteState == 0 && millis()-soundTime > 200)
+			{
+				// Play the next note
+				soundTime = millis();
+				tone_args[1] = int2obj(329);
+				primPlayTone(2, tone_args);
+				noteState++;
+			}
+			else if(noteState == 1 && millis()-soundTime > 100)
+			{
+				// Play the next note
+				soundTime = millis();
+				tone_args[1] = int2obj(523);
+				primPlayTone(2, tone_args);
+				noteState++;
+			}
+			else if(noteState == 2 && millis()-soundTime > 100)
+			{
+				//Play the third note
+				soundTime = millis();
+				tone_args[1] = int2obj(587);
+				primPlayTone(2, tone_args);
+				noteState++;
+			}
+			else if(noteState == 3 && millis()-soundTime > 100)
+			{
+				// Play the next note
+				soundTime = millis();
+				tone_args[1] = int2obj(740);
+				primPlayTone(2, tone_args);
+				noteState++;
+			}
+			else if(noteState == 4 && millis()-soundTime > 100)
+			{
+				//Turn off the buzzer
+				tone_args[1] = int2obj(0);
+				primPlayTone(2, tone_args);
+				noteState=255;
+			}
 
-		// Play the remainder of the disconnection sound
-		if(noteState == 10 && millis()-soundTime > 100)
-		{
-			// Play the next note
-			soundTime = millis();
-			tone_args[1] = int2obj(494);
-			primPlayTone(2, tone_args);
-			noteState++;
-		}
-		else if(noteState == 11 && millis()-soundTime > 100)
-		{
-			//Play the third note
-			soundTime = millis();
-			tone_args[1] = int2obj(392);
-			primPlayTone(2, tone_args);
-			noteState++;
-		}
-		else if(noteState == 12 && millis()-soundTime > 100)
-		{
-			//Play the third note
-			soundTime = millis();
-			tone_args[1] = int2obj(262);
-			primPlayTone(2, tone_args);
-			noteState++;
-		}
-		else if(noteState == 13 && millis()-soundTime > 100)
-		{
-			//Turn off the buzzer
-			tone_args[1] = int2obj(0);
-			primPlayTone(2, tone_args);
-			noteState=255;
-		}
+			// Play the remainder of the disconnection sound
+			if(noteState == 10 && millis()-soundTime > 100)
+			{
+				// Play the next note
+				soundTime = millis();
+				tone_args[1] = int2obj(494);
+				primPlayTone(2, tone_args);
+				noteState++;
+			}
+			else if(noteState == 11 && millis()-soundTime > 100)
+			{
+				//Play the third note
+				soundTime = millis();
+				tone_args[1] = int2obj(392);
+				primPlayTone(2, tone_args);
+				noteState++;
+			}
+			else if(noteState == 12 && millis()-soundTime > 100)
+			{
+				//Play the third note
+				soundTime = millis();
+				tone_args[1] = int2obj(262);
+				primPlayTone(2, tone_args);
+				noteState++;
+			}
+			else if(noteState == 13 && millis()-soundTime > 100)
+			{
+				//Turn off the buzzer
+				tone_args[1] = int2obj(0);
+				primPlayTone(2, tone_args);
+				noteState=255;
+			}
 
-		// turn off currently playing note, if any
-		if (hatchlingNoteIsPlaying && (microsecs() > hatchlingNoteEndTime)) {
-			tone_args[1] = int2obj(0);
-			primPlayTone(2, tone_args);
-			hatchlingNoteIsPlaying = false;
-		}
-		
-		// Need to increment the display to the next character if we are displaying text
+			// turn off currently playing note, if any
+			if (hatchlingNoteIsPlaying && (microsecs() > hatchlingNoteEndTime)) {
+				tone_args[1] = int2obj(0);
+				primPlayTone(2, tone_args);
+				hatchlingNoteIsPlaying = false;
+			}
+			
+			// Need to increment the display to the next character if we are displaying text
 
-		// Turn off any ports that need to be turned off
-		for(int pinNum = 0; pinNum < 6; pinNum++)
-		{
-			if(portActive[pinNum] && (microsecs() > portEndTime[pinNum])) {
-				switch(portType[pinNum]) {
-					// We don't depower the servo
-					case SERVO:
-						portActive[pinNum] = false;
-						break;				
-					case MOTOR:
-					case FAIRY:
-					case NEOPXL:
-						stopHLPort(pinNum);
-						portActive[pinNum] = false;
-						break;
-					// Currently broken, needs to be fixed, probably need a stopHLNeoPixelStripPort or something
-					case NEOPXL_STRIP:
-					/*	neopixel_strip_args[0] = newStringFromBytes((pinNum+65),1);
-						primNeoPixelStrip(5, neopixel_strip_args);*/
-						portActive[pinNum] = false;
-						break;
-					default:
-						break;
+			// Turn off any ports that need to be turned off
+			for(int pinNum = 0; pinNum < 6; pinNum++)
+			{
+				if(portActive[pinNum] && (microsecs() > portEndTime[pinNum])) {
+					switch(portType[pinNum]) {
+						// We don't depower the servo
+						case SERVO:
+							portActive[pinNum] = false;
+							break;				
+						case MOTOR:
+						case FAIRY:
+						case NEOPXL:
+							stopHLPort(pinNum);
+							portActive[pinNum] = false;
+							break;
+						case NEOPXL_STRIP:
+						// Nothing needs to happen since we don't use time delay here
+							break;
+						default:
+							break;
+					}
 				}
 			}
-		}
 
-		// If we're scrolling text, display the next character
-		if(textDisplaying == true && (microsecs() > nextDisplayTime))
-		{
-			OBJ displayArgs[3];
-			// If we've reached the end of the string, stop displaying
-			if(charCounter >= textLength)
+			// If we're scrolling text, display the next character
+			if(textDisplaying == true && (microsecs() > nextDisplayTime))
 			{
-				free(textToDisplay); // Free the memory used by the scrolling text
-				textDisplaying = false;
-				primMBDisplayOff(0,displayArgs);
-			}
-			else
-			{
-				textDisplayPos--;
-				
-				if(textDisplayPos == -5)
+				OBJ displayArgs[3];
+				// If we've reached the end of the string, stop displaying
+				if(charCounter >= textLength)
 				{
-					textDisplayPos = 0;
-					charCounter++;
+					free(textToDisplay); // Free the memory used by the scrolling text
+					textDisplaying = false;
+					primMBDisplayOff(0,displayArgs);
 				}
-				// Draw the current character exiting the screen
-				displayArgs[0] = newStringFromBytes(&textToDisplay[charCounter], 1);
-				OBJ letterShape = primMBShapeForLetter(1, displayArgs);
-
-				displayArgs[0] = letterShape;
-				displayArgs[1] = int2obj(textDisplayPos); // Displays the letter in x = 0 (or less), y = 1 position to start scrolling out. 
-				displayArgs[2] = int2obj(1);
-				primMBDrawShape(3,displayArgs);
-				// Draw the next character entering the screen - multiple primMBDrawShapes can be called on the display
-				// Only do this if there's a character to display
-				if(charCounter < textLength-1)
+				else
 				{
-					displayArgs[0] = newStringFromBytes(&textToDisplay[charCounter+1], 1);
-					letterShape = primMBShapeForLetter(1, displayArgs);
+					textDisplayPos--;
+					
+					if(textDisplayPos == -5)
+					{
+						textDisplayPos = 0;
+						charCounter++;
+					}
+					// Draw the current character exiting the screen
+					displayArgs[0] = newStringFromBytes(&textToDisplay[charCounter], 1);
+					OBJ letterShape = primMBShapeForLetter(1, displayArgs);
 
 					displayArgs[0] = letterShape;
-					displayArgs[1] = int2obj(textDisplayPos+5); // Displays the letter in x = 5 (or less), y = 1 position to start scrolling it. 
+					displayArgs[1] = int2obj(textDisplayPos); // Displays the letter in x = 0 (or less), y = 1 position to start scrolling out. 
 					displayArgs[2] = int2obj(1);
 					primMBDrawShape(3,displayArgs);
-				}
-				nextDisplayTime = microsecs() + DISPLAYTIME; // Updates every 100ms
-			}
-		}
+					// Draw the next character entering the screen - multiple primMBDrawShapes can be called on the display
+					// Only do this if there's a character to display
+					if(charCounter < textLength-1)
+					{
+						displayArgs[0] = newStringFromBytes(&textToDisplay[charCounter+1], 1);
+						letterShape = primMBShapeForLetter(1, displayArgs);
 
-		updateMicrobitDisplay();
-		checkButtons(); // Checks if a button is pressed every 10 ms, starts when button hat blocks if appropriate
-		
-		// Only do this if you're not making sound right now, or haven't made sound within the last 100 ms
-		if(microsecs() > hatchlingNoteEndTime+100000)
-		{
-			checkClaps(); // Checks if there has been a clap every 2.5 ms, starts hat blocks if appropriate, this function takes around 25 us. 
-		}
-      // Could add check accelerometer for shake, checking for claps, etc here - TOM NOTE
-		processMessage();
-      // Check if it is time to get a sensor reading from Hatchling to check port states, attached sensor values
-      // Do this every 5 ms
-      if((microsecs() - timeToSPI) > 5000) //&& advertisingTimeOver)
-      {
-        //pinMode(1, OUTPUT);
-        //digitalWrite(1, HIGH);
-        readHatchlingSensors(); // This function currently takes 260 us
-        timeToSPI = microsecs(); // Update time
-        //digitalWrite(1, LOW);
-      }
+						displayArgs[0] = letterShape;
+						displayArgs[1] = int2obj(textDisplayPos+5); // Displays the letter in x = 5 (or less), y = 1 position to start scrolling it. 
+						displayArgs[2] = int2obj(1);
+						primMBDrawShape(3,displayArgs);
+					}
+					nextDisplayTime = microsecs() + DISPLAYTIME; // Updates every 100ms
+				}
+			}
+
+			// Checking for clock wrap around - basically if timeToSPI is greater than microsecs, then we need to reset all of our timing due to a clock wrap
+			if(timeToSPI > microsecs())
+			{
+				wrapCounter++;
+				// If we've wrapped four times, then we've been on for 72 minutes * 4 - time to power down Hatchling
+				if(wrapCounter > 3)
+					turnOffHatchling();
+
+				timeToSPI = microsecs();   // Might cause up to a 5000 us delay every 72 minutes, but reading with a 10 ms delay instead of 5 is immaterial
+				timeToTransmit = millis(); // Might cause up to a 1/2 second delay in reporting sensors every 72 minutes, immaterial
+				if(textDisplaying)
+					nextDisplayTime = microsecs(); // This will trigger an update for the letter if currently printing, might be visible as a tiny glitch
+				
+				if(noteState != 255)
+					soundTime = millis(); // This may cause one note to play for up to 200 ms instead of 100
+
+				if(hatchlingNoteIsPlaying)
+					hatchlingNoteEndTime = microsecs(); // If a note is playing, this will turn it off in the next loop. This may result in an abbreviated note every 72 minutes
+
+				// Reset time for any ports that are - may result in an abbreviated movement every 72 minutes
+				for(int pinNum = 0; pinNum < 6; pinNum++)
+				{
+					if(portActive[pinNum])
+						portEndTime[pinNum] = microsecs();
+				}
+
+			}
+
+		// Check if it is time to get a sensor reading from Hatchling to check port states, attached sensor values
+		// Do this every 5 ms
+			if((microsecs() - timeToSPI) > 5000) //&& advertisingTimeOver)
+			{
+				//pinMode(1, OUTPUT);
+				//digitalWrite(1, HIGH);
+				readHatchlingSensors(); // This function currently takes 260 us
+				timeToSPI = microsecs(); // Update time
+				//digitalWrite(1, LOW);
+			}
+
+
+			updateMicrobitDisplay();
+			checkButtons(); // Checks if a button is pressed every 10 ms, starts when button hat blocks if appropriate
+			
+			// Only do this if you're not making sound right now, or haven't made sound within the last 100 ms
+			if(microsecs() > hatchlingNoteEndTime+100000)
+			{
+				checkClaps(); // Checks if there has been a clap every 2.5 ms, starts hat blocks if appropriate, this function takes around 25 us. 
+			}
+		// Could add check accelerometer for shake, checking for claps, etc here - TOM NOTE
+			processMessage();
 
 			count = 25; // must be under 30 when building on mbed to avoid serial errors
 		}
