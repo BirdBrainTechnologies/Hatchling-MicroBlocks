@@ -49,8 +49,55 @@ static int overRuns = 0;
 #define CHARACTERISTIC_UUID_RX	"bb37a002-b922-4018-8e74-e14824b3a638"
 #define CHARACTERISTIC_UUID_TX	"bb37a003-b922-4018-8e74-e14824b3a638"
 
-// BLE Helper Functions
+/************************************************************************
+Rude words to be removed
+************************************************************************/
+static const uint8_t first_letter[] = {
+	'A',	'A',	'A',	'A',	'B',	'C',	'C',	'C',	'C',	'C',	'C',	'C',	'C',	'C',	'D',	'D',
+	'D',	'D',	'D',	'D',	'D',	'D',	'D',	'D',	'F',	'F',	'F',	'F',	'F',	'F',	'F',	'F',
+	'F',	'F',	'F',	'F',	'F',	'G',	'G',	'G',	'G',	'G',	'G',	'G',	'G',	'G',	'G',	'H',
+	'J',	'J',	'J',	'J',	'J',	'J',	'K',	'K',	'K',	'K',	'K',	'K',	'K',	'K',	'K',	'K',
+	'K',	'K',	'K',	'K',	'K',	'L',	'L',	'L',	'L',	'L',	'L',	'M',	'M',	'M',	'M',	'M',
+	'M',	'M',	'M',	'M',	'N',	'N',	'N',	'N',	'N',	'N',	'N',	'O',	'O',	'P',	'P',	'P',
+	'P',	'P',	'P',	'P',	'P',	'P',	'P',	'P',	'P',	'P',	'P',	'P',	'P',	'R',	'R',	'R',
+	'R',	'S',	'S',	'S',	'S',	'S',	'S',	'S',	'S',	'S',	'S',	'S',	'S',	'S',	'S',	'S',
+	'S',	'S',	'S',	'S',	'S',	'T',	'T',	'T',	'T',	'T',	'T',	'V',	'V',	'V',	'V',	'W',
+	'W',	'W',	'W',	'W',	'W',	'X',	'X',	'A',	'A'
+	};
+	
+	/************************************************************************/
+	
+	static const uint8_t second_letter[] = {
+	'N',	'N',	'S',	'Z',	'C',	'A',	'A',	'A',	'L',	'N',	'O',	'O',	'O',	'U',	'C',	'I',
+	'I',	'I',	'I',	'M',	'S',	'Y',	'Y',	'Y',	'A',	'A',	'C',	'C',	'G',	'K',	'O',	'Q',
+	'T',	'U',	'U',	'U',	'U',	'A',	'A',	'E',	'E',	'I',	'U',	'U',	'U',	'V',	'Z',	'O',
+	'A',	'E',	'I',	'O',	'Y',	'Z',	'A',	'A',	'A',	'I',	'K',	'L',	'N',	'O',	'O',	'O',
+	'O',	'U',	'Y',	'Y',	'Y',	'C',	'I',	'I',	'I',	'O',	'S',	'F',	'I',	'I',	'I',	'L',
+	'U',	'Y',	'Y',	'Y',	'A',	'D',	'D',	'G',	'I',	'U',	'W',	'R',	'P',	'C',	'H',	'H',
+	'H',	'I',	'M',	'N',	'O',	'O',	'R',	'R',	'R',	'R',	'S',	'S',	'U',	'A',	'A',	'A',
+	'C',	'A',	'A',	'A',	'C',	'E',	'F',	'H',	'J',	'L',	'N',	'O',	'O',	'T',	'U',	'U',
+	'U',	'X',	'X',	'X',	'X',	'H',	'I',	'O',	'O',	'O',	'W',	'A',	'A',	'G',	'J',	'A',
+	'A',	'A',	'C',	'O',	'T',	'T',	'X',	'Z',	'Z'
+	};
+	
+	
+	/************************************************************************/
+	
+	static const uint8_t third_letter[] = {
+	'L',	'S',	'S',	'N',	'H',	'C',	'K',	'Q',	'T',	'T',	'C',	'K',	'Q',	'M',	'K',	'C',
+	'K',	'Q',	'X',	'N',	'H',	'C',	'K',	'Q',	'G',	'P',	'K',	'U',	'T',	'U',	'B',	'U',
+	'P',	'C',	'K',	'Q',	'X',	'I',	'Y',	'I',	'Y',	'Z',	'C',	'K',	'Q',	'R',	'Z',	'R',
+	'P',	'W',	'Z',	'O',	'Z',	'Z',	'C',	'K',	'Q',	'K',	'K',	'T',	'T',	'C',	'K',	'Q',
+	'X',	'M',	'C',	'K',	'Q',	'K',	'C',	'K',	'Q',	'L',	'D',	'F',	'C',	'K',	'Q',	'F',
+	'F',	'C',	'K',	'Q',	'D',	'S',	'Z',	'R',	'G',	'T',	'A',	'L',	'P',	'P',	'C',	'K',
+	'Q',	'S',	'S',	'S',	'O',	'T',	'C',	'K',	'N',	'Q',	'S',	'Y',	'S',	'C',	'K',	'Q',
+	'K',	'C',	'K',	'Q',	'K',	'X',	'U',	'T',	'V',	'T',	'M',	'B',	'L',	'D',	'C',	'K',
+	'Q',	'E',	'I',	'X',	'Y',	'C',	'T',	'C',	'K',	'Q',	'T',	'G',	'J',	'N',	'N',	'C',
+	'K',	'Q',	'K',	'P',	'F',	'C',	'X',	'S',	'Z'
+	};
 
+
+// BLE Helper Functions
 void getMACAddress(uint8 *sixBytes) {
 	// Store up to six bytes of unique chip ID into the six-byte argument array.
 	uint32 deviceID = NRF_FICR->DEVICEID[0];
@@ -61,6 +108,25 @@ void getMACAddress(uint8 *sixBytes) {
 	deviceID = NRF_FICR->DEVICEID[1];
 	sixBytes[1] = deviceID & 255;
 	sixBytes[0] = (deviceID >> 8) & 255;
+}
+
+// Checks if the name could be misconstrued
+bool rude_word_check()
+{
+	for(unsigned int i=0;i<sizeof(first_letter);i++)
+	{
+		if(BLE_ThreeLetterID[0] == first_letter[i] )
+		{
+			if(BLE_ThreeLetterID[1] == second_letter[i])
+			{
+				if(BLE_ThreeLetterID[2] == third_letter[i] )
+				{
+					return true;
+				}
+			}
+		}
+	}
+	return false;
 }
 
 void BLE_initThreeLetterID() {
@@ -74,6 +140,10 @@ void BLE_initThreeLetterID() {
 	machineNum = machineNum / 26;
 	BLE_ThreeLetterID[2] = 65 + (machineNum % 26);
 	BLE_ThreeLetterID[3] = 0;
+
+	// Change the middle letter to a 'B' because there are no rude words with a B in the middle
+	if(rude_word_check())
+		BLE_ThreeLetterID[1] = 'B';
 
 	sprintf(uniqueName, "%s", BLE_ThreeLetterID);
 }
