@@ -25,7 +25,9 @@ void setup() {
 	outputString((char *) "Welcome to Hatchling MicroBlocks!"); // Change and you'll see in the browser console
 	restoreScripts();
 	if (BLE_isEnabled()) BLE_start();
-	startAll(); // Starts all hat blocks
+
+  if(!isBLEConnected())
+  	startAll(); // Starts all hat blocks
 
   // Turn on the microphone
   pinMode(28, OUTPUT);

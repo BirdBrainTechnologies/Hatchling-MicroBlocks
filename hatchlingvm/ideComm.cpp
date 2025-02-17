@@ -106,8 +106,14 @@ static void show_BLE_ID() {
 			displayFor(700);
 			primMBDisplayOff(0, args);
 			displayFor(100);
+			// If we've connected, return from the function
+			if(isBLEConnected())
+				return;
 		}
 		displayFor(1000);
+		// If we've connected, return from the function
+		if(isBLEConnected())
+			return;
 	}
 	primMBDisplayOff(0, args);
 }
