@@ -357,6 +357,7 @@ static OBJ primHatchlingServoWithDelay(int argCount, OBJ *args) {
 	{
 		portActive[pinNum] = false; // In case it is already true from being set previously. Port Active just means that it needs to be turned off later
 		portType[pinNum] = SERVO; // Set the type regardless
+		taskSleep(1); // Sleep to yield control to other running tasks
 	}
 	else {
 		portActive[pinNum] = true;
@@ -391,6 +392,7 @@ static OBJ primHatchlingMotorWithDelay(int argCount, OBJ *args) {
 	{
 		portActive[pinNum] = false; // In case it is already true from being set previously. Port Active just means that it needs to be turned off later
 		portType[pinNum] = MOTOR; // Set the type regardless
+		taskSleep(1); // Sleep to yield control to other running tasks
 	}
 	else {
 		portActive[pinNum] = true;
@@ -425,6 +427,7 @@ static OBJ primHatchlingFairyLightWithDelay(int argCount, OBJ *args) {
 	{
 		portActive[pinNum] = false; // In case it is already true from being set previously. Port Active just means that it needs to be turned off later
 		portType[pinNum] = FAIRY; // Set the type regardless
+		taskSleep(1); // Sleep to yield control to other running tasks
 	}
 	else
 	{
@@ -459,6 +462,7 @@ static OBJ primNeopixelWithDelay(int argCount, OBJ *args) {
 	{
 		portActive[pinNum] = false; // In case it is already true from being set previously. Port Active just means that it needs to be turned off later
 		portType[pinNum] = NEOPXL; // Set the type regardless
+		taskSleep(1); // Sleep to yield control to other running tasks
 	}
 	else
 	{
@@ -486,6 +490,7 @@ static OBJ primNeopixelStripBuiltIn(int argCount, OBJ *args) {
 	primNeoPixelStrip(5, NeopixelStripArgs);
 	portActive[pinNum] = false; // In case it is already true from being set previously. Port Active being true  just means that it needs to be turned off later
 	portType[pinNum] = NEOPXL_STRIP; // Set the type regardless
+	taskSleep(1); // Sleep to yield control to other running tasks
 	
 	return trueObj;
 }
