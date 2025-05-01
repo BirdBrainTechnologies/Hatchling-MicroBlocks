@@ -834,16 +834,16 @@ void turnOffHatchling()
     delayMicroseconds(SPI_DELAY); //Give Hatchling time to execute an SPI command    
 }
 
-
+// Commented out the prims where we use the withDelay in interp.c alternative instead
 static PrimEntry entries[] = {
 	{"rd", primHatchlingRead},
-    {"fl", primFairyLights},
+   // {"fl", primFairyLights},
     {"st", primSetTempo},
     {"gt", primGetTempo},
-    {"psv", primPositionServos},
-    {"rsv", primRotationServos},
-    {"np", primNeoPixel},
-    {"nps", primNeoPixelStrip},
+  //  {"psv", primPositionServos},
+  //  {"rsv", primRotationServos},
+  //  {"np", primNeoPixel},
+  //  {"nps", primNeoPixelStrip},
     {"ds", primDistanceSensor},
     {"ls", primLightSensor},
     {"bb", primBigButton},

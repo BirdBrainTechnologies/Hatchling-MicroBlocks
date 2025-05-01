@@ -407,7 +407,7 @@ int getButtonPresses()
 
 #define CLAP_CHECK_INTERVAL 2500 // microseconds
 #define SOUND_SAMPLES 10 // # of samples we'll take to determine a clap
-#define CLAP_THRESHOLD 100 // loudness of 100 or more will create a clap
+#define CLAP_THRESHOLD 200 // loudness of 200 or more will create a clap
 
 static uint32 lastClapCheck = 0;
 static char clapCurrent = false;
