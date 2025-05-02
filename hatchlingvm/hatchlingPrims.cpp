@@ -84,11 +84,11 @@ uint8 PixelStripCommand[GP_PORT_TOTAL][SPICMDLENGTH]= {0};// = {HATCHLING_SET_EX
 // Holds the port states that we have passed on to the hatchling
 uint8 setPortCommands[SPICMDLENGTH] = {HATCHLING_SET_PORT_STATES, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
-// Buffer of 5 sensor values to 
-uint8 sensorBuffer[GP_PORT_TOTAL][SENSOR_BUFFER] = {0};
+// Buffer of 5 sensor values to get the median - filters out spurious values. Used for port sensors and the battery
+uint8 sensorBuffer[GP_PORT_TOTAL+1][SENSOR_BUFFER] = {0};
 bool sendUpdateCommand = false; // Used to determine if we need to send an port state update via SPI
 bool checkPortSetting = false; // We use this to indicate if we need to check if the ports are set correctly
-uint8 stabilizeCounter = 0;
+uint8 stabilizeCounters[GP_PORT_TOTAL] = {0, 0, 0, 0, 0, 0};
 
 uint8 GPSensorValues[GP_PORT_TOTAL] = {0, 0, 0, 0, 0, 0};
 
@@ -100,6 +100,39 @@ static void initSPI() {
 	SPI.beginTransaction(SPISettings(spiSpeed, MSBFIRST, spiMode));
 
 }
+
+
+// Used for filtering out spurious sensor values
+uint8 getMedianValue(uint8 port, uint8 sensorValue)
+{
+    for (int i = SENSOR_BUFFER - 1; i > 0; i--)
+    {
+        sensorBuffer[port][i] = sensorBuffer[port][i - 1];
+    }
+    sensorBuffer[port][0] = sensorValue;
+    uint8 sortedVals[SENSOR_BUFFER];
+    // Copy into a single array for sorting
+    for(int i = 0; i < SENSOR_BUFFER; i++)
+    {
+        sortedVals[i] = sensorBuffer[port][i];
+    }
+    int min_index;
+    int tempVal;
+    for (int i = 0; i < SENSOR_BUFFER - 1; i++) {
+        // Find the minimum element in unsorted array.
+        min_index = i;
+        for (int j = i + 1; j < SENSOR_BUFFER; j++) {
+            if (sortedVals[j] < sortedVals[min_index])
+                min_index = j;
+        }
+        // Swap the found minimum element with the first element.
+        tempVal = sortedVals[i];
+        sortedVals[i] = sortedVals[min_index];
+        sortedVals[min_index] = tempVal;
+    }
+    return sortedVals[SENSOR_BUFFER/2]; // return the median value
+}
+
 
 void getHatchlingData(uint8 *hlData)
 {
@@ -115,7 +148,8 @@ void getHatchlingData(uint8 *hlData)
         //if(hlData[i] == 10 || hlData[i] == 11)
          //   hlData[i] = 9;
     }  
-    hlData[7] = hatchlingSPISensors[20];
+    // Get the median value of the 5 most recent battery values
+    hlData[7] = getMedianValue(6, hatchlingSPISensors[20]);
 }
 
 void setPortsViaSPI()
@@ -159,7 +193,7 @@ OBJ primFairyLights(int argCount, OBJ *args) {
     {
         return args[0];
     }
-	int value = obj2int(args[1]);
+	int value = obj2int(args[1])*5/2;
 	if (value < 0) value = 0;
 	if (value > 255) value = 255;
 
@@ -591,37 +625,6 @@ OBJ primButtons(int argCount, OBJ *args) {
 	return int2obj(result);
 }
 
-// Used for filtering out spurious sensor values
-uint8 getMedianValue(uint8 port, uint8 sensorValue)
-{
-    for (int i = SENSOR_BUFFER - 1; i > 0; i--)
-    {
-        sensorBuffer[port][i] = sensorBuffer[port][i - 1];
-    }
-    sensorBuffer[port][0] = sensorValue;
-    uint8 sortedVals[SENSOR_BUFFER];
-    // Copy into a single array for sorting
-    for(int i = 0; i < SENSOR_BUFFER; i++)
-    {
-        sortedVals[i] = sensorBuffer[port][i];
-    }
-    int min_index;
-    int tempVal;
-    for (int i = 0; i < SENSOR_BUFFER - 1; i++) {
-        // Find the minimum element in unsorted array.
-        min_index = i;
-        for (int j = i + 1; j < SENSOR_BUFFER; j++) {
-            if (sortedVals[j] < sortedVals[min_index])
-                min_index = j;
-        }
-        // Swap the found minimum element with the first element.
-        tempVal = sortedVals[i];
-        sortedVals[i] = sortedVals[min_index];
-        sortedVals[min_index] = tempVal;
-    }
-    return sortedVals[SENSOR_BUFFER/2]; // return the median value
-}
-
 // Gets called from vmLoop approximately once every 5 ms. Initiates a read transaction and then organizes the data in all of the appropriate spots
 void readHatchlingSensors() {
 
@@ -653,7 +656,11 @@ void readHatchlingSensors() {
         // If nothing is plugged in, the value should be 255
         if(Filtered_ID_Vals[i-14] > 250)
         {
-            GP_ID_vals_new[i-14] = 0;
+            GP_ID_vals_new[i-14] = 0; 
+            // Debugging only
+            /*char s[60];
+            snprintf(s, sizeof(s), "POrt %d, ID new %d, ID compare %d, ID %d", i-14, GP_ID_vals_new[i-14], GP_ID_vals_compare[i-14], GP_ID_vals[i-14]);
+            outputString(s);*/
         } 
         else {
             for(int j = 1; j < TOTAL_POSSIBLE_ACCESSORIES; j++)
@@ -668,27 +675,41 @@ void readHatchlingSensors() {
     }
 
     // If any of the ports have changed, we'll need to tell the SAMD microcontroller to update their state
-    for(int i = 0; i < GP_PORT_TOTAL; i++)
+
+    // First check if any of the values have changed
+    for(uint8 i = 0; i < GP_PORT_TOTAL; i++)
     {
         if(GP_ID_vals_new[i]!=GP_ID_vals_compare[i])
         {
-            stabilizeCounter = 0;
+            stabilizeCounters[i] = 0; // Sometimes there is noise on the line so we reset a stability counter to wait until we have a stable value
+            // Debugging only
+            /*    char s[60];
+                snprintf(s, sizeof(s), "Port %d, ID %d, Value %d", i, GP_ID_vals_new[i], Filtered_ID_Vals[i]);
+                outputString(s);
+            */
         }
         GP_ID_vals_compare[i] = GP_ID_vals_new[i];
     }
 
     // Basically wait 20 iterations (about 100 ms) for values to stabilize. Might need to adjust this 
-    if(stabilizeCounter < 20)
+    for(int i=0; i < GP_PORT_TOTAL; i++)
     {
-        stabilizeCounter++;
-    }
-    // If you've waited twenty cycles for values to stabilize, time to update the Hatchling port states
-    else if(stabilizeCounter == 20)
-    {   
-        stabilizeCounter++; // Prevents this from being used again                
-
-        for(int i=0; i < GP_PORT_TOTAL; i++)
+        
+        if(stabilizeCounters[i] < 20)
         {
+            stabilizeCounters[i]++;
+            // Debugging only
+            /*  
+                char s[60];
+                snprintf(s, sizeof(s), "Port %d|ID %d|Value %d|Count %d", i, GP_ID_vals_compare[i], Filtered_ID_Vals[i], stabilizeCounters[i]);
+                outputString(s);
+            */
+        }
+        // If you've waited twenty cycles for values to stabilize, time to update the Hatchling port states
+        else if(stabilizeCounters[i] == 20)
+        {   
+            stabilizeCounters[i]++; // Prevents this from being used again                
+
             // Only update the state of the port if it has changed
             if(GP_ID_vals[i] != GP_ID_vals_compare[i])
             {
@@ -699,52 +720,66 @@ void readHatchlingSensors() {
                     Port_lock[i] = false; // Unlock the port if nothing is plugged in
                     GP_ID_vals[i] = GP_ID_vals_compare[i]; // Update the value sent to the tablet/device
                     sendUpdateCommand = true; // Make sure to update the Hatchling daughter controller so it knows to update the port to a "port off" state
+                    // Debugging only
+                    /*  
+                        char s[60];
+                        snprintf(s, sizeof(s), "Port Set %d|ID %d|Value %d|Count %d", i, GP_ID_vals[i], Filtered_ID_Vals[i], stabilizeCounters[i]);
+                        outputString(s);
+                    */
                 }
                 // If the port is unlocked, you can update it to the new component that is plugged into it
                 else if(Port_lock[i] == false)
                 {
                     GP_ID_vals[i] = GP_ID_vals_compare[i];
                     sendUpdateCommand = true;
-                    Port_lock[i] = true; // Lock the port since we are setting it
+                    // Debugging only
+                    /*  
+                        char s[60];
+                        snprintf(s, sizeof(s), "Port Set %d|ID %d|Value %d|Count %d", i, GP_ID_vals[i], Filtered_ID_Vals[i], stabilizeCounters[i]);
+                        outputString(s);
+                    */
+                    Port_lock[i] = true; // Lock the port since we are setting it to a specific component - it will only change after this if the port registers an unplug event
                 }
+                
             }
         }
-        // If we're updating any of the ports, then we need to set all of the ports
-        if(sendUpdateCommand)
-        {
-            memset(setPortCommands, 0, SPICMDLENGTH);
-            setPortCommands[0] = HATCHLING_SET_PORT_STATES;
-            for(int i=0; i < GP_PORT_TOTAL; i++)
-            {            
-                // Update the state of the port
-                if((GP_ID_vals[i] ==1) || (GP_ID_vals[i] == 2))
-                {
-                    setPortCommands[i+1] = ROTATION_SERVO;
-                }
-                else if((GP_ID_vals[i] > 2) && (GP_ID_vals[i] < 7))
-                {
-                    setPortCommands[i+1] = POSITION_SERVO;
-                }
-                else if((GP_ID_vals[i] == 7) || (GP_ID_vals[i] == 9))
-                {
-                    setPortCommands[i+1] = NEOPXL_SINGLE;
-                }
-                else if((GP_ID_vals[i] == 10) || (GP_ID_vals[i] == 11))
-                {
-                    setPortCommands[i+1] = NEOPXL_STRIP;
-                }
-                else if((GP_ID_vals[i] > 11) && (GP_ID_vals[i] < 22))
-                {
-                    setPortCommands[i+1] = ANALOG_SENSOR;
-                }
-                else if((GP_ID_vals[i] == 8) || ((GP_ID_vals[i] > 21) && (GP_ID_vals[i] < 26)))
-                {
-                    setPortCommands[i+1] = DIGITAL_OUT;
-                }
-                else
-                {
-                    setPortCommands[i+1] = PORTOFF;
-                }
+    }
+    // If we're updating any of the ports, then we need to set all of the ports
+    if(sendUpdateCommand)
+    {
+        //outputString("Updating ports");
+        memset(setPortCommands, 0, SPICMDLENGTH);
+        setPortCommands[0] = HATCHLING_SET_PORT_STATES;
+        for(int i=0; i < GP_PORT_TOTAL; i++)
+        {            
+            // Update the state of the port
+            if((GP_ID_vals[i] ==1) || (GP_ID_vals[i] == 2))
+            {
+                setPortCommands[i+1] = ROTATION_SERVO;
+            }
+            else if((GP_ID_vals[i] > 2) && (GP_ID_vals[i] < 7))
+            {
+                setPortCommands[i+1] = POSITION_SERVO;
+            }
+            else if((GP_ID_vals[i] == 7) || (GP_ID_vals[i] == 9))
+            {
+                setPortCommands[i+1] = NEOPXL_SINGLE;
+            }
+            else if((GP_ID_vals[i] == 10) || (GP_ID_vals[i] == 11))
+            {
+                setPortCommands[i+1] = NEOPXL_STRIP;
+            }
+            else if((GP_ID_vals[i] > 11) && (GP_ID_vals[i] < 22))
+            {
+                setPortCommands[i+1] = ANALOG_SENSOR;
+            }
+            else if((GP_ID_vals[i] == 8) || ((GP_ID_vals[i] > 21) && (GP_ID_vals[i] < 26)))
+            {
+                setPortCommands[i+1] = DIGITAL_OUT;
+            }
+            else
+            {
+                setPortCommands[i+1] = PORTOFF;
             }
         }
     }
@@ -758,12 +793,12 @@ void readHatchlingSensors() {
             if(setPortCommands[i+1] != hatchlingSPISensors[2*i+2])
             {
                 sendUpdateCommand = true; // Basically, send the update port types command again
-                outputString("Writing Ports Again"); //Debugging only
+                //outputString("Writing Ports Again"); //Debugging only
             }
         }
         checkPortSetting = false; //If sendUpdateCommand isn't true, this will stay false. Otherwise, it'll be true again in the next cycle. 
     }
-            // Only update the settings if at least one port required an update
+    // Only update the settings if at least one port required an update
     if(sendUpdateCommand)
     {
         // Send the update command
