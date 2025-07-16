@@ -198,7 +198,7 @@ OBJ primFairyLights(int argCount, OBJ *args) {
 	if (value > 255) value = 255;
 
     // Only do the rest if you have fairy lights attached on that port
-    if(GP_ID_vals[pinNum] == FAIRY_LIGHTS_ID) 
+    if((GP_ID_vals[pinNum] == FAIRY_LIGHTS_ID) || (GP_ID_vals[pinNum] == FAIRY_LIGHTS_ID-1)) 
     {
         // Set the appropriate part of the command 
         PortValuesCommand[pinNum*3 + 1] = 0;
@@ -344,7 +344,7 @@ OBJ primNeoPixel(int argCount, OBJ *args) {
 	if (blueVal < 0) blueVal = 0;
 	if (blueVal > 255) blueVal = 255;
     // Only do the rest if you have a neopixel attached on that port
-    if(GP_ID_vals[pinNum] == 7 || GP_ID_vals[pinNum] == 9) 
+    if(GP_ID_vals[pinNum] == 9 || GP_ID_vals[pinNum] == 10) 
     {
         // Set the appropriate part of the command 
         PortValuesCommand[pinNum*3 + 1] = redVal;
@@ -423,7 +423,7 @@ OBJ primNeoPixelStrip(int argCount, OBJ *args) {
     }
 
     // Only do the rest if you have a neopixel strip attached on that port
-    if(GP_ID_vals[pinNum] == 10 || GP_ID_vals[pinNum] == 11) 
+    if(GP_ID_vals[pinNum] == 11) 
     {
         // Set the first two bytes of the array
         PixelStripCommand[pinNum][0] = HATCHLING_SET_EXTERNAL_PXL;
@@ -761,11 +761,11 @@ void readHatchlingSensors() {
             {
                 setPortCommands[i+1] = POSITION_SERVO;
             }
-            else if((GP_ID_vals[i] == 7) || (GP_ID_vals[i] == 9))
+            else if((GP_ID_vals[i] == 9) || (GP_ID_vals[i] == 10))
             {
                 setPortCommands[i+1] = NEOPXL_SINGLE;
             }
-            else if((GP_ID_vals[i] == 10) || (GP_ID_vals[i] == 11))
+            else if(GP_ID_vals[i] == 11)
             {
                 setPortCommands[i+1] = NEOPXL_STRIP;
             }
@@ -773,7 +773,7 @@ void readHatchlingSensors() {
             {
                 setPortCommands[i+1] = ANALOG_SENSOR;
             }
-            else if((GP_ID_vals[i] == 8) || ((GP_ID_vals[i] > 21) && (GP_ID_vals[i] < 26)))
+            else if((GP_ID_vals[i] == 7) || (GP_ID_vals[i] == 8) || ((GP_ID_vals[i] > 21) && (GP_ID_vals[i] < 26)))
             {
                 setPortCommands[i+1] = DIGITAL_OUT;
             }
