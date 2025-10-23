@@ -485,7 +485,7 @@ static void nrfDetachServo(int pin) {
 	}
 }
 
-static void setServo(int pin, int usecs) {
+void setServo(int pin, int usecs) {
 	if (!servoToneTimerStarted) startServoToneTimer();
 
 	if (usecs <= 0) { // turn off servo

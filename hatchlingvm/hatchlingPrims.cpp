@@ -93,12 +93,15 @@ uint8 stabilizeCounters[GP_PORT_TOTAL] = {0, 0, 0, 0, 0, 0};
 uint8 GPSensorValues[GP_PORT_TOTAL] = {0, 0, 0, 0, 0, 0};
 
 static void initSPI() {
-	setPinMode(PIN_SPI_MISO, INPUT);
+    setPinMode(12, OUTPUT);
+    setPinMode(13, OUTPUT);
+    setPinMode(14, OUTPUT);
+/*	setPinMode(PIN_SPI_MISO, INPUT);
 	setPinMode(PIN_SPI_SCK, OUTPUT);
 	setPinMode(PIN_SPI_MOSI, OUTPUT);
 	SPI.begin();
 	SPI.beginTransaction(SPISettings(spiSpeed, MSBFIRST, spiMode));
-
+*/
 }
 
 
@@ -138,7 +141,7 @@ void getHatchlingData(uint8 *hlData)
 {
     int i = 0;
     hlData[0] = 252; // All other returns start with 250 or 251
-
+/*
     // Copy the port states into the array
     for(i= 1; i < GP_PORT_TOTAL+1; i++)
     {
@@ -147,14 +150,23 @@ void getHatchlingData(uint8 *hlData)
         // Temporary hack to control neopixel strips from Hatchling app
         //if(hlData[i] == 10 || hlData[i] == 11)
          //   hlData[i] = 9;
-    }  
+    } */
+
+
+    hlData[1] = 3;
+    hlData[2] = 1;
+    hlData[3] = 8;
+    hlData[4] = 0;
+    hlData[5] = 0;
+    hlData[6] = 0;
+
     // Get the median value of the 5 most recent battery values
-    hlData[7] = getMedianValue(6, hatchlingSPISensors[20]);
+    hlData[7] = 200; // Battery value
 }
 
 void setPortsViaSPI()
 {
-    pinMode(16, OUTPUT);
+/*    pinMode(16, OUTPUT);
     digitalWrite(16, LOW);
 
     initSPI(); // Does begin transaction in there
@@ -166,16 +178,25 @@ void setPortsViaSPI()
     SPI.endTransaction();
     
     digitalWrite(16, HIGH);    
-    delayMicroseconds(SPI_DELAY); //Give Hatchling time to execute an SPI command 
+    delayMicroseconds(SPI_DELAY); //Give Hatchling time to execute an SPI command */
 }
 
 // Helper function used with turning off the port on a time delay
 void stopHLPort(int pinNum)
 {
+    if(pinNum == 1)
+    {
+        setServo(14, 1500);
+    }
+    if(pinNum == 2)
+    {
+        analogWrite(12, 0);
+    }
+    /*
     PortValuesCommand[pinNum*3 + 1] = 0;
     PortValuesCommand[pinNum*3 + 2] = 0;
     PortValuesCommand[pinNum*3 + 3] = 0;
-    setPortsViaSPI();
+    setPortsViaSPI();*/
 }
 
 // Primitives
@@ -201,11 +222,13 @@ OBJ primFairyLights(int argCount, OBJ *args) {
     if((GP_ID_vals[pinNum] == FAIRY_LIGHTS_ID) || (GP_ID_vals[pinNum] == FAIRY_LIGHTS_ID-1)) 
     {
         // Set the appropriate part of the command 
+        /*
         PortValuesCommand[pinNum*3 + 1] = 0;
         PortValuesCommand[pinNum*3 + 2] = 0;
         PortValuesCommand[pinNum*3 + 3] = value;
 
-        setPortsViaSPI();
+        setPortsViaSPI();*/
+        analogWrite(12, value);
 	    return trueObj;
     }
     return falseObj;
@@ -252,12 +275,16 @@ OBJ primPositionServos(int argCount, OBJ *args) {
     // Only do the rest if you have a servo attached on that port
     if(GP_ID_vals[pinNum] > 0 && GP_ID_vals[pinNum] < 7) 
     {
+        /*
         // Set the appropriate part of the command 
         PortValuesCommand[pinNum*3 + 1] = 0;
         PortValuesCommand[pinNum*3 + 2] = 0;
         PortValuesCommand[pinNum*3 + 3] = value;
 
-        setPortsViaSPI();
+        setPortsViaSPI();*/
+        value = 600+190*value/18;
+        setPinMode(13, OUTPUT);
+        setServo(13, value);
 	    return trueObj;
     }
     return falseObj;
@@ -287,7 +314,7 @@ OBJ primRotationServos(int argCount, OBJ *args) {
     if(GP_ID_vals[pinNum] > 0 && GP_ID_vals[pinNum] < 7) 
     {
         // Convert value to something useful for motors. 116 and 64 are where the motor starts moving
-        if(value > 0)
+        /*if(value > 0)
         {
             value = 116 + value*59/100; //Basically set the range to 5 to 175 to avoid sending a power off command (0, 1, or 2)
 
@@ -295,7 +322,7 @@ OBJ primRotationServos(int argCount, OBJ *args) {
         else if(value < 0)
         {
             value = 64 + value*59/100; //Basically set the range to 5 to 175 to avoid sending a power off command (0, 1, or 2)    
-        }        
+        } */       
 
         // Convert value to something useful for rotation servos
         /*if(value < 5 && value > -5) // create a dead zone
@@ -307,11 +334,15 @@ OBJ primRotationServos(int argCount, OBJ *args) {
             value = value/3 + 91; // 91 is the midpoint of our servo command - need to double check this - this is the code for rotation servos
         }*/
         // Set the appropriate part of the command 
+        /*
         PortValuesCommand[pinNum*3 + 1] = 0;
         PortValuesCommand[pinNum*3 + 2] = 0;
         PortValuesCommand[pinNum*3 + 3] = value;
-
-        setPortsViaSPI();
+          
+        setPortsViaSPI(); */
+        value = 1500+value*3;
+        setPinMode(14, OUTPUT);
+        setServo(14, value);
 	    return trueObj;
     }
     return falseObj;
@@ -627,7 +658,13 @@ OBJ primButtons(int argCount, OBJ *args) {
 
 // Gets called from vmLoop approximately once every 5 ms. Initiates a read transaction and then organizes the data in all of the appropriate spots
 void readHatchlingSensors() {
-
+    GP_ID_vals[0] = 3;
+    GP_ID_vals[1] = 1;
+    GP_ID_vals[2] = 8;
+    GP_ID_vals[3] = 0;
+    GP_ID_vals[4] = 0;
+    GP_ID_vals[5] = 0;
+/*
     uint8_t GP_ID_vals_new[6] = {31, 31, 31, 31, 31, 31}; // Initialize each value to 31
 
     pinMode(16, OUTPUT);
@@ -661,7 +698,7 @@ void readHatchlingSensors() {
             /*char s[60];
             snprintf(s, sizeof(s), "POrt %d, ID new %d, ID compare %d, ID %d", i-14, GP_ID_vals_new[i-14], GP_ID_vals_compare[i-14], GP_ID_vals[i-14]);
             outputString(s);*/
-        } 
+       /* } 
         else {
             for(int j = 1; j < TOTAL_POSSIBLE_ACCESSORIES; j++)
             {
@@ -687,7 +724,7 @@ void readHatchlingSensors() {
                 snprintf(s, sizeof(s), "Port %d, ID %d, Value %d", i, GP_ID_vals_new[i], Filtered_ID_Vals[i]);
                 outputString(s);
             */
-        }
+    /*    }
         GP_ID_vals_compare[i] = GP_ID_vals_new[i];
     }
 
@@ -704,7 +741,7 @@ void readHatchlingSensors() {
                 snprintf(s, sizeof(s), "Port %d|ID %d|Value %d|Count %d", i, GP_ID_vals_compare[i], Filtered_ID_Vals[i], stabilizeCounters[i]);
                 outputString(s);
             */
-        }
+    /*    }
         // If you've waited twenty cycles for values to stabilize, time to update the Hatchling port states
         else if(stabilizeCounters[i] == 20)
         {   
@@ -726,7 +763,7 @@ void readHatchlingSensors() {
                         snprintf(s, sizeof(s), "Port Set %d|ID %d|Value %d|Count %d", i, GP_ID_vals[i], Filtered_ID_Vals[i], stabilizeCounters[i]);
                         outputString(s);
                     */
-                }
+      /*          }
                 // If the port is unlocked, you can update it to the new component that is plugged into it
                 else if(Port_lock[i] == false)
                 {
@@ -738,7 +775,7 @@ void readHatchlingSensors() {
                         snprintf(s, sizeof(s), "Port Set %d|ID %d|Value %d|Count %d", i, GP_ID_vals[i], Filtered_ID_Vals[i], stabilizeCounters[i]);
                         outputString(s);
                     */
-                    Port_lock[i] = true; // Lock the port since we are setting it to a specific component - it will only change after this if the port registers an unplug event
+      /*              Port_lock[i] = true; // Lock the port since we are setting it to a specific component - it will only change after this if the port registers an unplug event
                 }
                 
             }
@@ -824,12 +861,15 @@ void readHatchlingSensors() {
         sendBroadcastToIDE(portCmds,6); // For debugging, to see what we just sent to the Hatchling
         */
 
-    }
+    //}
 }
 
 // Sends the stop command to the Hatchling - turns off LEDs and servos
 void stopHatchling()
 {
+    analogWrite(12,0); // Turn of lights
+    setServo(14, 1500); // Set continuous servo to 0
+    /*
     uint8_t stopCommand[SPICMDLENGTH];
     
     memset(stopCommand, 0xFF, SPICMDLENGTH);
@@ -846,11 +886,13 @@ void stopHatchling()
     digitalWrite(16, HIGH);
     delayMicroseconds(SPI_DELAY); //Give Hatchling time to execute an SPI command    
     memset(GP_ID_vals_compare, 31, GP_PORT_TOTAL); // Resetting the port identifiers to force an onboard LED update when we reconnect
+    */
 }
 
 // Sends the power down command to the Hatchling - turns off the device - currently we time out after 4 hours
 void turnOffHatchling()
 {
+    /*
     uint8_t turnOffCommand[SPICMDLENGTH];
     
     memset(turnOffCommand, 0xFF, SPICMDLENGTH);
@@ -867,6 +909,7 @@ void turnOffHatchling()
         
     digitalWrite(16, HIGH);
     delayMicroseconds(SPI_DELAY); //Give Hatchling time to execute an SPI command    
+    */
 }
 
 // Commented out the prims where we use the withDelay in interp.c alternative instead

@@ -304,6 +304,10 @@ void showLEDCode(); // Sets the neopixels to a color code based on Mac Address
 void stopHatchling(); // Turns off attached servos/LEDs
 void turnOffHatchling(); // Powers down the Hatchling
 
+// Functions needed for Strawbees from ioPrims.cpp
+void setServo(int pin, int usecs);
+
+
 // Primitives
 
 OBJ primNewList(int argCount, OBJ *args);
