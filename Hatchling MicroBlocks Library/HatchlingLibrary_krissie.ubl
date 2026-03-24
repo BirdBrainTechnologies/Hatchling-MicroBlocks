@@ -15,4 +15,11 @@ variables paramList
   spec ' ' '[h:psv]' 'Position Servo port _ angle _' 'str num' 'A' 90
   spec ' ' '[h:rsv]' 'Rotation Servo port _ speed _ %' 'str num' 'A' 50
   spec ' ' '[io:ptd]' 'Play Tone _ Hz  _ ms' 'num num' 440 250
+  
+  spec 'r' '[sensors:lvl]' 'Level'
+  spec 'r' '[sensors:udwn]' 'Upside Down'
+  spec 'r' '[sensors:btnup]' 'Power Button Up'
+  spec 'r' '[sensors:btndwn]' 'Power Button Down'
+  spec 'r' '[sensors:dspup]' 'Display Up'
+  spec 'r' '[sensors:dspdwn]' 'Display Down'
 

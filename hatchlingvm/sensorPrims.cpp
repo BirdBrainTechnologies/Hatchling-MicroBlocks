@@ -640,30 +640,122 @@ OBJ primMBTiltZ(int argCount, OBJ *args) { return int2obj(readAcceleration(5)); 
 // X-axis remains the same
 OBJ primMBTiltX(int argCount, OBJ *args) { return int2obj(readAcceleration(1)); }
 
-// Y-axis changes significantly 
-OBJ primMBTiltY(int argCount, OBJ *args) { 
-	int value;
-	int valueY;
-	int valueZ;
-	valueY = readAcceleration(3);
-	valueZ = readAcceleration(5);
+// Y-axis of the Hatchling Nest Controller is the micro:bit's Z axis (hence 5 instead of 3)
+OBJ primMBTiltY(int argCount, OBJ *args) { return int2obj(readAcceleration(5)); }
 
-	// Do some math
-	value = valueY/2-valueZ*866/1000; // Hatchling micro:bit is at a 60 degree angle, so we adjust by cos and sin of 60 (0.5, sqrt(3)/2)
+// Z-axis of the Hatchling Nest Controller is the micro:bit's Y axis (hence 3 instead of 5)
+OBJ primMBTiltZ(int argCount, OBJ *args) { return int2obj(readAcceleration(3)); }
 
-	return int2obj(value); }
+// Create prims to get boolean response about whether the Hatchling is oriented in a certain way
 
-// Z-axis changes significantly
-OBJ primMBTiltZ(int argCount, OBJ *args) { 
-	int value;
-	int valueY;
-	int valueZ;
-	valueY = readAcceleration(3);
-	valueZ = readAcceleration(5);
+OBJ primHatchlingLevel(int argCount, OBJ *args) {
+	int tiltx, tilty, tiltz;
 
-	// Do some math
-	value = valueY*866/1000+valueZ/2; // Hatchling micro:bit is at a 60 degree angle, so we adjust by sin and cos of 60 (sqrt(3)/2, 0.5)
-	return int2obj(value); }
+	tiltx = readAcceleration(1);
+	tilty = readAcceleration(5);
+	tiltz = readAcceleration(3);
+
+	// Hatchling is level when X = 0, Y = 0, Z = 100
+	if((tiltx < 40) && (tiltx > -40) && (tilty < 40) && (tilty > -40) && (tiltz > 60))
+	{
+		return trueObj;
+	}
+	else
+	{
+		return falseObj;
+	}
+}
+
+OBJ primHatchlingUpsideDown(int argCount, OBJ *args) {
+	int tiltx, tilty, tiltz;
+
+	tiltx = readAcceleration(1);
+	tilty = readAcceleration(5);
+	tiltz = readAcceleration(3);
+
+	// Hatchling is upside down when X = 0, Y = 0, Z = -100
+	if((tiltx < 40) && (tiltx > -40) && (tilty < 40) && (tilty > -40) && (tiltz < -60))
+	{
+		return trueObj;
+	}
+	else
+	{
+		return falseObj;
+	}
+}
+
+OBJ primHatchlingPowerButtonUp(int argCount, OBJ *args) {
+	int tiltx, tilty, tiltz;
+
+	tiltx = readAcceleration(1);
+	tilty = readAcceleration(5);
+	tiltz = readAcceleration(3);
+
+	// Hatchling's Power Button is Up when X = 100, Y = 0, Z = 0
+	if((tiltz < 40) && (tiltz > -40) && (tilty < 40) && (tilty > -40) && (tiltx > 60))
+	{
+		return trueObj;
+	}
+	else
+	{
+		return falseObj;
+	}
+}
+
+OBJ primHatchlingPowerButtonDown(int argCount, OBJ *args) {
+	int tiltx, tilty, tiltz;
+
+	tiltx = readAcceleration(1);
+	tilty = readAcceleration(5);
+	tiltz = readAcceleration(3);
+
+	// Hatchling's Power Button is Up when X = -100, Y = 0, Z = 0
+	if((tiltz < 40) && (tiltz > -40) && (tilty < 40) && (tilty > -40) && (tiltx < -60))
+	{
+		return trueObj;
+	}
+	else
+	{
+		return falseObj;
+	}
+}
+
+OBJ primHatchlingDisplayUp(int argCount, OBJ *args) {
+	int tiltx, tilty, tiltz;
+
+	tiltx = readAcceleration(1);
+	tilty = readAcceleration(5);
+	tiltz = readAcceleration(3);
+
+	// Hatchling's micro:bit display is down when X = 0, Y = 100, Z = 0
+	if((tiltz < 40) && (tiltz > -40) && (tiltx < 40) && (tiltx > -40) && (tilty > 60))
+	{
+		return trueObj;
+	}
+	else
+	{
+		return falseObj;
+	}
+}
+
+OBJ primHatchlingDisplayDown(int argCount, OBJ *args) {
+	int tiltx, tilty, tiltz;
+
+	tiltx = readAcceleration(1);
+	tilty = readAcceleration(5);
+	tiltz = readAcceleration(3);
+
+	// Hatchling's micro:bit display is down when X = -0, Y = -100, Z = 0
+	if((tiltz < 40) && (tiltz > -40) && (tiltx < 40) && (tiltx > -40) && (tilty < -60))
+	{
+		return trueObj;
+	}
+	else
+	{
+		return falseObj;
+	}
+}
+
 
 // Magnetometer
 
@@ -895,6 +987,12 @@ static PrimEntry entries[] = {
 	{"tiltX", primMBTiltX},
 	{"tiltY", primMBTiltY},
 	{"tiltZ", primMBTiltZ},
+	{"lvl", primHatchlingLevel},
+	{"udwn", primHatchlingUpsideDown},
+	{"btnup", primHatchlingPowerButtonUp},
+	{"btndwn", primHatchlingPowerButtonDown},
+	{"dspup", primHatchlingDisplayUp},
+	{"dspdwn", primHatchlingDisplayDown},
 	{"setAccelerometerRange", primSetAccelerometerRange},
 	{"magneticField", primMagneticField},
 	{"i2cRead", primI2cRead},
