@@ -536,7 +536,7 @@ OBJ primLightSensor(int argCount, OBJ *args) {
     {
         return args[0];
     }
-    // Return a value only if we have a distance sensor attached
+    // Return a value only if we have a light sensor attached
     if(GP_ID_vals[pinNum] == 20) 
     {	
         return int2obj(GPSensorValues[pinNum]);
@@ -578,7 +578,7 @@ OBJ primAllButtons(int argCount, OBJ *args) {
     for(uint8_t pinNum = 0; pinNum < GP_PORT_TOTAL; pinNum++)
         if(GP_ID_vals[pinNum] == 17) 
         {	            
-            if (GPSensorValues[pinNum] < 10) {
+            if (GPSensorValues[pinNum] < 30) {
                 return trueObj;
             }
     }
@@ -663,6 +663,39 @@ void readHatchlingSensors() {
             outputString(s);*/
         } 
         else {
+
+            // New way directly assigns based on values
+            if(Filtered_ID_Vals[i-14] < 20 && Filtered_ID_Vals[i-14] > 2)
+            {
+                GP_ID_vals_new[i-14] = 1; // ID for rotation servo
+            }
+            else if(Filtered_ID_Vals[i-14] > 20 && Filtered_ID_Vals[i-14] < 45)
+            {
+                GP_ID_vals_new[i-14] = 3; // ID for position servo
+            }
+            else if(Filtered_ID_Vals[i-14] > 60 && Filtered_ID_Vals[i-14] < 93)
+            {
+                GP_ID_vals_new[i-14] = 8; // ID for fairy lights
+            }
+            else if(Filtered_ID_Vals[i-14] > 92 && Filtered_ID_Vals[i-14] < 110)
+            {
+                GP_ID_vals_new[i-14] = 9; // ID for big light
+            }
+            else if(Filtered_ID_Vals[i-14] > 130 && Filtered_ID_Vals[i-14] < 160)
+            {
+                GP_ID_vals_new[i-14] = 14; // ID for distance sensor
+            }
+            else if(Filtered_ID_Vals[i-14] > 160 && Filtered_ID_Vals[i-14] < 190)
+            {
+                GP_ID_vals_new[i-14] = 17; // ID for big button
+            }
+            else
+            {
+                GP_ID_vals_new[i-14] = 20; // Neutral ID, not 0 or 31, right now just means nothing recognizable is plugged in
+            }
+
+            // Old way of exhaustively searching for which accessory it might be. Updated way just checks for the six actual in production components
+            /* 
             for(int j = 1; j < TOTAL_POSSIBLE_ACCESSORIES; j++)
             {
                 if((Filtered_ID_Vals[i-14] < (id_values[j] + 7)) && (Filtered_ID_Vals[i-14] > (id_values[j] -7)))
@@ -670,7 +703,7 @@ void readHatchlingSensors() {
                     GP_ID_vals_new[i-14] = j;
                     break; // break out of inner loop only
                 }
-            }
+            }*/
         }
     }
 

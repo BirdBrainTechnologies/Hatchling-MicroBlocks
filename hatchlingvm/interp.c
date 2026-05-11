@@ -1666,6 +1666,7 @@ static int currentTaskIndex = -1;
 	fancyName[2] = nameFromMac[1];
 	fancyName[4] = nameFromMac[2];
 }*/
+
 void vmLoop() {
 	// Run the next runnable task. Wake up any waiting tasks whose wakeup time has arrived.
 
@@ -1706,7 +1707,12 @@ void vmLoop() {
 	neopixel_strip_args[3] = int2obj(0);
 	neopixel_strip_args[4] = int2obj(0);*/
 
-
+	// Read the sensor data for a bit in order to stabilize readings
+	for(int i = 0; i < 50; i++)
+	{
+		readHatchlingSensors();
+		delayMicroseconds(10000);
+	}
 
 	while (true) {
 		if (count-- < 0) {
