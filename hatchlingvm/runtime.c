@@ -407,7 +407,7 @@ int getButtonPresses()
 
 #define CLAP_CHECK_INTERVAL 2500 // microseconds
 #define SOUND_SAMPLES 10 // # of samples we'll take to determine a clap
-#define CLAP_THRESHOLD 200 // loudness of 200 or more will create a clap
+#define CLAP_THRESHOLD 500 // loudness of 500 or more will create a clap
 
 static uint32 lastClapCheck = 0;
 static char clapCurrent = false;
@@ -790,12 +790,17 @@ void sendTaskError(uint8 chunkIndex, uint8 errorCode, int where) {
 	// Location is
 
 	char data[5];
-	data[0] = (errorCode & 0xFF); // one byte error code
-	data[1] = (where & 0xFF);
-	data[2] = ((where >> 8) & 0xFF);
-	data[3] = ((where >> 16) & 0xFF);
-	data[4] = ((where >> 24) & 0xFF);
-	sendMessage(taskErrorMsg, chunkIndex, sizeof(data), data);
+
+	// BirdBrain hack to resolve false reporting of the needs integer error
+	if(errorCode != needsIntegerError)
+	{
+		data[0] = (errorCode & 0xFF); // one byte error code
+		data[1] = (where & 0xFF);
+		data[2] = ((where >> 8) & 0xFF);
+		data[3] = ((where >> 16) & 0xFF);
+		data[4] = ((where >> 24) & 0xFF);
+		sendMessage(taskErrorMsg, chunkIndex, sizeof(data), data);
+	}
 }
 
 void sendTaskReturnValue(uint8 chunkIndex, OBJ returnValue) {

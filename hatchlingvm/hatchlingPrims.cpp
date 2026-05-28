@@ -213,7 +213,7 @@ OBJ primFairyLights(int argCount, OBJ *args) {
 
 // Function to set the tempo
 OBJ primSetTempo(int argCount, OBJ *args) {
-	if (!isInt(args[0])) { fail(needsIntegerError); return args[0]; }
+	if (!isInt(args[0])) { fail(needsIntegerIndexError); return args[0]; }
  
 	int value = obj2int(args[0]);
     // This is the tempo in beats per minute
